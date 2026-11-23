@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teaching Pay &amp; Kenya Tax Calculator (2026)</title>
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+<div class="c-shell">
+
+  <!-- Header -->
+  <header class="c-header">
+    <div>
+      <div class="ed-eyebrow">Kenya 2026 Statutory Tax Calculator</div>
+      <h1 class="c-title">Teaching Pay &amp; Tax Calculator</h1>
+      <p class="c-subtitle">Enter the months and days taught to calculate exact taxes, save to Google Sheets, and export a clean statement.</p>
+    </div>
+    <div class="c-btn-row">
+      <a href="#" target="_blank" rel="noopener" class="c-btn c-btn--ghost c-btn--sm" id="btnOpenSheetTop" style="display:none;text-decoration:none;">Open Google Sheet</a>
+      <button type="button" class="c-btn c-btn--ghost c-btn--sm" id="btnThemeToggle">Dark Mode</button>
+    </div>
+  </header>
+
+  <!-- Route Navigation Tabs -->
+  <nav class="c-nav" aria-label="Main sections">
+    <a href="#calculator" class="c-tab is-active" id="tab-calculator">
+      <span class="c-tab-dot"></span>
+      <span>1. Calculate Invoice</span>
+    </a>
+    <a href="#rates" class="c-tab" id="tab-rates">
+      <span class="c-tab-dot"></span>
+      <span>2. Daily Rate Guide</span>
+    </a>
+    <a href="#history" class="c-tab" id="tab-history">
+      <span class="c-tab-dot"></span>
+      <span>3. Saved Ledger</span>
+    </a>
+    <a href="#settings" class="c-tab" id="tab-settings">
+      <span class="c-tab-dot"></span>
+      <span>4. Tax Rules &amp; Cloud</span>
+    </a>
+  </nav>
+
+  <!-- Active Correction Mode Banner -->
+  <div id="correctionBanner" class="c-banner c-banner--warn">
+    <span id="correctionBannerText">Fixing a past calculation</span>
+    <button type="button" class="c-btn c-btn--ghost c-btn--sm" id="btnCancelCorrection">Cancel Fix (Start Fresh)</button>
+  </div>
+
+  <!-- Feedback Banner -->
+  <div id="feedbackBanner" class="c-banner" role="status"></div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       VIEW 1: #calculator — Calculate Invoice
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <main id="view-calculator" class="c-view is-active">
+
+    <!-- Step 1: Daily Rates & Calculation Type -->
+    <section class="c-card">
+      <div class="c-card-head">
+        <div>
+          <h2 class="c-card-title">Step 1: Daily Rates &amp; Calculation Type</h2>
+          <p class="c-card-desc">Choose whether to add tax on top of take-home pay or deduct tax from a gross rate.</p>
+        </div>
+      </div>
+
+      <div class="c-mode-switch" role="group" aria-label="Calculation direction">
+        <button type="button" class="c-mode-btn is-selected" id="modeBtnReverse">
+          <strong>Find Invoice Amount (Keep Full Take-Home)</strong>
+          <span>Adds tax on top so your take-home pay is not reduced.</span>
+        </button>
+        <button type="button" class="c-mode-btn" id="modeBtnForward">
+          <strong>Check Take-Home (Deduct Tax from Rate)</strong>
+          <span>Shows what remains if taxes are subtracted from the rate.</span>
+        </button>
+      </div>
+
+      <div class="c-grid-3">
+        <div class="c-field">
+          <label class="c-label" for="daughterRate">Daughter Daily Rate (KES)</label>
+          <input type="number" class="c-input" id="daughterRate" value="3500" min="0" step="50">
+        </div>
+        <div class="c-field">
+          <label class="c-label" for="sonRate">Son Daily Rate (KES)</label>
+          <input type="number" class="c-input" id="sonRate" value="2500" min="0" step="50">
+        </div>
+        <div class="c-field">
+          <label class="c-label" for="billingMode">How Is It Being Paid?</label>
+          <select class="c-input" id="billingMode">
+            <option value="lump" selected>Paid Together on One Invoice</option>
+            <option value="monthly">Paid &amp; Taxed Separately Each Month</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 2: Months & Teaching Days -->
+    <section class="c-card">
+      <div class="c-card-head">
+        <div>
+          <h2 class="c-card-title">Step 2: Months &amp; Days Worked</h2>
+          <p class="c-card-desc">Use the + and &minus; buttons (or type) to enter days worked for each student.</p>
+        </div>
+        <div class="c-btn-row">
+          <button type="button" class="c-btn c-btn--ghost c-btn--sm" id="btnAddMonth">+ Add Another Month</button>
+          <button type="button" class="c-btn c-btn--danger c-btn--sm" id="btnResetDays">Reset Days</button>
+        </div>
+      </div>
+
+      <div id="monthsContainer" class="c-month-list"></div>
+
+      <!-- Optional: Prior Payment or Mistake Adjustment -->
+      <details id="priorDetailsBox" style="margin-top:16px;">
+        <summary style="cursor:pointer;font-weight:600;font-size:0.9rem;color:var(--text-secondary);">
+          Did the client already pay part of this, or are you correcting an older invoice? (Click to open)
+        </summary>
+        <div class="c-grid-3" style="margin-top:12px;">
+          <div class="c-field">
+            <label class="c-label" for="priorPaid">Amount Already Paid (KES)</label>
+            <input type="number" class="c-input" id="priorPaid" value="0" min="0" step="100">
+            <span class="c-hint">Subtracts what they already paid you.</span>
+          </div>
+          <div class="c-field">
+            <label class="c-label" for="manualAdj">Other Adjustment (+/&minus; KES)</label>
+            <input type="number" class="c-input" id="manualAdj" value="0" step="100">
+            <span class="c-hint">Add missed balance (+) or credit (&minus;).</span>
+          </div>
+          <div class="c-field">
+            <label class="c-label" for="correctionReason">Note / Reason</label>
+            <input type="text" class="c-input" id="correctionReason" placeholder="e.g. Client paid base pay earlier">
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- Step 3: Clear Results, Cloud Save & Presentable Exports -->
+    <section class="c-card">
+      <div class="c-card-head">
+        <div>
+          <h2 class="c-card-title">Step 3: Results &amp; Statement Export</h2>
+          <p class="c-card-desc">Save persistently to Google Sheets or export a clean PDF / Excel statement to share.</p>
+        </div>
+      </div>
+
+      <div class="c-stats">
+        <div class="c-stat c-stat--takehome">
+          <div class="c-stat-label">1. Money for Mom (Take-Home)</div>
+          <div class="c-stat-value" id="statNet">KES 0.00</div>
+          <div class="c-stat-note" id="statNetNote">0 total days</div>
+        </div>
+        <div class="c-stat c-stat--tax">
+          <div class="c-stat-label">2. Extra to Add for Taxes</div>
+          <div class="c-stat-value" id="statTax">+ KES 0.00</div>
+          <div class="c-stat-note" id="statTaxNote">PAYE + NSSF + SHA + Housing Levy</div>
+        </div>
+        <div class="c-stat c-stat--invoice">
+          <div class="c-stat-label">3. Total to Put on Invoice</div>
+          <div class="c-stat-value" id="statGross">KES 0.00</div>
+          <div class="c-stat-note" id="statGrossNote">Total pre-tax invoice amount</div>
+        </div>
+        <div class="c-stat" id="statBalanceCard" style="display:none;">
+          <div class="c-stat-label">4. Balance Still Owed Now</div>
+          <div class="c-stat-value" id="statBalance">KES 0.00</div>
+          <div class="c-stat-note" id="statBalanceNote">After subtracting prior payment</div>
+        </div>
+      </div>
+
+      <div class="c-btn-row" style="margin-bottom:18px;">
+        <button type="button" class="c-btn c-btn--primary" id="btnSaveCalc">Save to Google Sheet Ledger</button>
+        <button type="button" class="c-btn c-btn--ink" id="btnPrintPdf">Export PDF / Print Statement</button>
+        <button type="button" class="c-btn c-btn--ghost" id="btnDownloadCsv">Export Excel (.CSV)</button>
+        <button type="button" class="c-btn c-btn--ghost" id="btnCopyWhatsApp">Copy for WhatsApp</button>
+      </div>
+
+      <details open>
+        <summary style="cursor:pointer;font-weight:700;font-size:0.92rem;margin-bottom:10px;">
+          Full Tax &amp; Deduction Breakdown (Itemized Proof)
+        </summary>
+        <div class="c-table-wrap">
+          <table class="c-table">
+            <thead>
+              <tr>
+                <th>Tax / Payslip Line</th>
+                <th class="num">Amount (KES)</th>
+                <th>How It Is Calculated</th>
+              </tr>
+            </thead>
+            <tbody id="proofTableBody"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       VIEW 2: #rates — Daily Rate Guide (20-Day Month)
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section id="view-rates" class="c-view">
+    <div class="c-card">
+      <div class="c-card-head">
+        <div>
+          <h2 class="c-card-title">Tax-Inclusive Daily Rate Guide (<span id="plannerDaysLabel">20</span>-Day Working Month)</h2>
+          <p class="c-card-desc">
+            If you want to quote a single daily rate that already includes taxes so your take-home stays intact:
+          </p>
+        </div>
+        <div class="c-field" style="min-width:180px;">
+          <label class="c-label" for="maxDaysMonth">Working Days in a Full Month</label>
+          <input type="number" class="c-input" id="maxDaysMonth" value="20" min="1" max="31">
+        </div>
+      </div>
+    </div>
+
+    <div id="plannerCardsContainer"></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       VIEW 3: #history — Persistent Google Sheet Ledger & Corrections
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section id="view-history" class="c-view">
+    <div class="c-card">
+      <div class="c-card-head">
+        <div>
+          <h2 class="c-card-title">Persistent Calculation Ledger (Google Sheets)</h2>
+          <p class="c-card-desc">
+            Every saved calculation is stored in your Google Sheet. Click <strong>"Fix / Correct"</strong> on any entry to load it back, adjust the days or rates, and save a corrective replacement.
+          </p>
+        </div>
+        <div class="c-btn-row">
+          <button type="button" class="c-btn c-btn--ghost c-btn--sm" id="btnRefreshHistory">Sync from Google Sheet</button>
+        </div>
+      </div>
+
+      <div class="c-table-wrap">
+        <table class="c-table">
+          <thead>
+            <tr>
+              <th>ID &amp; Date</th>
+              <th>Status</th>
+              <th class="num">Days</th>
+              <th class="num">Take-Home</th>
+              <th class="num">Total Invoice</th>
+              <th>Notes</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       VIEW 4: #settings — 2026 Tax Rules & Cloud Connection
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section id="view-settings" class="c-view">
+    <div class="c-card">
+      <div class="c-card-head">
+        <div>
+          <h2 class="c-card-title">2026 Kenya Statutory Tax Rates</h2>
+          <p class="c-card-desc">Pre-set to official 2026 KRA, NSSF Year 4, SHA/SHIF, and Housing Levy rules. Only change these if Kenya updates tax law.</p>
+        </div>
+      </div>
+
+      <div class="c-grid-3">
+        <div class="c-field">
+          <label class="c-label" for="pNssfRate">NSSF Rate (%)</label>
+          <input type="number" class="c-input" id="pNssfRate" value="6" step="0.1">
+        </div>
+        <div class="c-field">
+          <label class="c-label" for="pNssfCap">NSSF Monthly Earnings Cap (KES)</label>
+          <input type="number" class="c-input" id="pNssfCap" value="108000" step="1000">
+        </div>
+        <div class="c-field">
+          <label class="c-label" for="pShifRate">SHA / SHIF Rate (%)</label>
+          <input type="number" class="c-input" id="pShifRate" value="2.75" step="0.05">
+        </div>
+        <div class="c-field">
+          <label class="c-label" for="pShifMin">SHA / SHIF Minimum (KES/mo)</label>
+          <input type="number" class="c-input" id="pShifMin" value="300" step="50">
+        </div>
+        <div class="c-field">
+          <label class="c-label" for="pAhlRate">Affordable Housing Levy Rate (%)</label>
+          <input type="number" class="c-input" id="pAhlRate" value="1.5" step="0.1">
+        </div>
+        <div class="c-field">
+          <label class="c-label" for="pRelief">Monthly Personal Relief (KES)</label>
+          <input type="number" class="c-input" id="pRelief" value="2400" step="100">
+        </div>
+      </div>
+    </div>
+
+    <div class="c-card">
+      <div class="c-card-head">
+        <div>
+          <h2 class="c-card-title">Google Sheet Persistent Storage Endpoint</h2>
+          <p class="c-card-desc">Connected to the Google Apps Script Web App backing your Google Sheet ledger.</p>
+        </div>
+      </div>
+      <div class="c-grid-2">
+        <div class="c-field">
+          <label class="c-label" for="webhookUrl">Google Apps Script Web App URL</label>
+          <input type="text" class="c-input" id="webhookUrl" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+        <div class="c-field" style="justify-content:flex-end;">
+          <button type="button" class="c-btn c-btn--ghost" id="btnSaveWebhook">Update Cloud Endpoint</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       PRINTABLE / EXPORTABLE PDF STATEMENT SHEET (@media print)
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section id="printStatementSheet" class="c-print-sheet" aria-hidden="true"></section>
+
+</div>
+
+<script src="js/tax-engine.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

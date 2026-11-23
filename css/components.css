@@ -1,0 +1,732 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   components.css — Canonical Shared UI Primitives
+                    (One concept = one class; mobile-first >=44px tap targets)
+
+   CONTENTS — search "§N" to jump:
+     §1  App shell & header bar (.c-shell, .c-header, .ed-eyebrow)
+     §2  Route navigation tabs (.c-nav, .c-tab)
+     §3  Cards & section headers (.c-card, .c-card-head)
+     §4  Buttons (.c-btn, --primary, --ink, --ghost, --danger)
+     §5  Form fields & touch day-steppers (.c-field, .c-input, .c-stepper)
+     §6  Month entry cards (.c-month-list, .c-month-item)
+     §7  Answer summary tiles (.c-stats, .c-stat)
+     §8  Data tables & mobile stacked cards (.c-table)
+     §9  Status badges & banners (.c-badge, .c-banner)
+     §10 Route view visibility (.c-view)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* §1 ── App shell & header bar ──────────────────────────────────────────── */
+.c-shell {
+  max-width: var(--measure);
+  margin-inline: auto;
+  padding: clamp(14px, 3vw, 28px) var(--gutter) 64px;
+}
+
+.c-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: 18px;
+}
+
+.ed-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.ed-eyebrow::before {
+  content: "";
+  width: 24px;
+  height: 2px;
+  background: var(--color-red);
+  flex: none;
+}
+
+.c-title {
+  font-size: clamp(1.35rem, 2.6vw, 1.85rem);
+  line-height: 1.15;
+}
+
+.c-subtitle {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* §2 ── Route navigation tabs ───────────────────────────────────────────── */
+.c-nav {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  background: var(--bg-elevated);
+  padding: 6px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  margin-bottom: 20px;
+}
+
+.c-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--duration-micro) ease, color var(--duration-micro) ease;
+  text-align: center;
+}
+
+.c-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.c-tab.is-active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-card);
+}
+
+.c-tab-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-red);
+  display: none;
+}
+
+.c-tab.is-active .c-tab-dot {
+  display: inline-block;
+}
+
+@media (max-width: 640px) {
+  .c-nav {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* §3 ── Cards & section headers ─────────────────────────────────────────── */
+.c-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: clamp(16px, 2.5vw, 24px);
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-card);
+}
+
+.c-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.c-card-title {
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+.c-card-desc {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* §4 ── Buttons (Neutral focus ring, >=44px mobile touch height) ─────────── */
+.c-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.c-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--duration-micro) ease, border-color var(--duration-micro) ease, color var(--duration-micro) ease;
+  user-select: none;
+}
+
+.c-btn:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.c-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.c-btn--primary {
+  background: var(--action-primary);
+  color: var(--action-primary-text);
+}
+
+.c-btn--primary:hover:not(:disabled) {
+  background: var(--color-red-hover);
+}
+
+.c-btn--ink {
+  background: var(--action-ink);
+  color: var(--action-ink-text);
+}
+
+.c-btn--ink:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.c-btn--ghost {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.c-btn--ghost:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.c-btn--danger {
+  background: var(--status-error-bg);
+  color: var(--status-error);
+  border-color: var(--status-error-border);
+}
+
+.c-btn--sm {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 0.83rem;
+}
+
+/* Mode switch pills */
+.c-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.c-mode-btn {
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: border-color var(--duration-micro) ease, background-color var(--duration-micro) ease;
+}
+
+.c-mode-btn strong {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.c-mode-btn span {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.c-mode-btn.is-selected {
+  border-color: var(--color-red);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+}
+
+/* §5 ── Form fields & touch day-steppers ────────────────────────────────── */
+.c-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.c-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.c-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.c-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.c-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.c-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-default);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: var(--sans);
+  font-size: 1rem;
+  font-weight: 600;
+  transition: border-color var(--duration-micro) ease;
+}
+
+.c-input:focus {
+  outline: none;
+  border-color: var(--text-primary);
+}
+
+.c-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.c-step-btn {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.c-step-btn:hover {
+  border-color: var(--border-strong);
+}
+
+.c-stepper .c-input {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* §6 ── Month entry cards (Mobile-first, zero horizontal scroll) ────────── */
+.c-month-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.c-month-item {
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.c-month-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.c-month-pickers {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 320px;
+}
+
+.c-month-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.1fr;
+  gap: 14px;
+  align-items: end;
+}
+
+.c-month-summary {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.c-month-summary-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.c-month-summary-line strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .c-month-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* §7 ── Answer summary tiles ────────────────────────────────────────────── */
+.c-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.c-stat {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+}
+
+.c-stat--takehome {
+  background: var(--status-success-bg);
+  border-color: var(--status-success-border);
+}
+
+.c-stat--tax {
+  background: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+}
+
+.c-stat--invoice {
+  border: 2px solid var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.c-stat-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.c-stat-value {
+  font-size: clamp(1.35rem, 2.4vw, 1.7rem);
+  font-weight: 800;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.c-stat--takehome .c-stat-value {
+  color: var(--status-success);
+}
+
+.c-stat--tax .c-stat-value {
+  color: var(--status-warning);
+}
+
+.c-stat-note {
+  font-size: 0.81rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* §8 ── Data tables ─────────────────────────────────────────────────────── */
+.c-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.c-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.c-table th,
+.c-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+}
+
+.c-table th {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.c-table tr:last-child td {
+  border-bottom: none;
+}
+
+.c-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.c-table tr.is-sub {
+  background: var(--bg-elevated);
+  font-weight: 600;
+}
+
+.c-table tr.is-total {
+  background: var(--status-success-bg);
+  font-weight: 700;
+}
+
+.c-table tr.is-tax {
+  background: var(--status-warning-bg);
+  font-weight: 700;
+}
+
+.c-table tr.is-superseded {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+/* §9 ── Status badges & banners ─────────────────────────────────────────── */
+.c-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.c-badge--active {
+  background: var(--status-success-bg);
+  color: var(--status-success);
+  border: 1px solid var(--status-success-border);
+}
+
+.c-badge--old {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border: 1px solid var(--border-default);
+}
+
+.c-banner {
+  display: none;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.c-banner.is-visible {
+  display: flex;
+}
+
+.c-banner--warn {
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
+  border: 1.5px solid var(--status-warning-border);
+}
+
+.c-banner--ok {
+  background: var(--status-success-bg);
+  color: var(--status-success);
+  border: 1px solid var(--status-success-border);
+}
+
+.c-banner--err {
+  background: var(--status-error-bg);
+  color: var(--status-error);
+  border: 1px solid var(--status-error-border);
+}
+
+/* §10 ── Route view visibility ──────────────────────────────────────────── */
+.c-view {
+  display: none;
+}
+
+.c-view.is-active {
+  display: block;
+}
+
+/* §11 ── Printable / Exportable PDF Statement (@media print) ───────────── */
+.c-print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 16mm;
+  }
+  body {
+    background: #FFFFFF !important;
+    color: #0A0A0A !important;
+    font-size: 11pt;
+  }
+  .c-header,
+  .c-nav,
+  .c-banner,
+  .c-view {
+    display: none !important;
+  }
+  .c-shell {
+    max-width: 100%;
+    padding: 0;
+  }
+  .c-print-sheet {
+    display: block !important;
+    color: #0A0A0A;
+  }
+  .p-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 2px solid #0A0A0A;
+    padding-bottom: 10px;
+    margin-bottom: 16px;
+  }
+  .p-eyebrow {
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #EA1821;
+    margin-bottom: 4px;
+  }
+  .p-title {
+    font-size: 16pt;
+    font-weight: 800;
+    margin: 0;
+  }
+  .p-meta {
+    text-align: right;
+    font-size: 9pt;
+    color: #3D3D3D;
+  }
+  .p-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .p-box {
+    border: 1px solid #CCCCCC;
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .p-box--strong {
+    border: 2px solid #0A0A0A;
+  }
+  .p-box-label {
+    font-size: 8pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #555555;
+  }
+  .p-box-val {
+    font-size: 13pt;
+    font-weight: 800;
+    margin-top: 4px;
+  }
+  .p-section-title {
+    font-size: 10pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 14px 0 6px;
+    border-bottom: 1px solid #0A0A0A;
+    padding-bottom: 3px;
+  }
+  .p-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+    margin-bottom: 12px;
+  }
+  .p-table th,
+  .p-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #E0E0E0;
+    text-align: left;
+  }
+  .p-table th {
+    background: #F2F2F0 !important;
+    font-weight: 700;
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .p-table .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .p-table tr.is-bold td {
+    font-weight: 700;
+    border-top: 1px solid #0A0A0A;
+    border-bottom: 2px solid #0A0A0A;
+  }
+  .p-footer {
+    margin-top: 20px;
+    padding-top: 8px;
+    border-top: 1px solid #CCCCCC;
+    font-size: 8.5pt;
+    color: #555555;
+    display: flex;
+    justify-content: space-between;
+  }
+}

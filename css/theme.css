@@ -1,0 +1,149 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   theme.css — Canonical Token Layer (Adapted from NRR Portal client-theme.css
+               & Portfolio editorial.css)
+
+    Rules:
+     - One token definition per concept; light & dark themes resolve through
+       these tokens so components never hardcode hex colours.
+     - Light mode (#FDFDFC / #FFFFFF / #FBFBFA, ink #0A0A0A, muted #6B6965 at
+       5.38:1 contrast) is the default for daytime phone legibility; dark mode
+       (#080808 / #050505) uses the portal's dead-neutral dark ramp.
+     - Racing Red (#EA1821) is the brand accent and primary action event.
+
+   CONTENTS — search "§N" to jump:
+     §1  Immutable brand & motion primitives
+     §2  Light theme tokens (default)
+     §3  Dark theme tokens ([data-theme="dark"])
+     §4  Base reset & typography
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* §1 ── Immutable brand & motion primitives ──────────────────────────────── */
+:root {
+  --color-red: #EA1821;
+  --color-red-hover: #C8121A;
+  --color-black: #050505;
+  --color-white: #F5F4F0;
+
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
+
+  --gutter: clamp(16px, 4vw, 36px);
+  --measure: 980px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --duration-micro: 200ms;
+  --duration-move: 360ms;
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* §2 ── Light theme tokens (Default for high-legibility mobile use) ──────── */
+:root,
+[data-theme="light"] {
+  --bg-base: #FDFDFC;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F5F5F3;
+  --bg-input: #FFFFFF;
+  --bg-hover: rgba(10, 10, 10, 0.04);
+
+  --text-primary: #0A0A0A;
+  --text-secondary: #3D3D3D;
+  --text-muted: #6B6965; /* 5.38:1 contrast on #FDFDFC */
+
+  --border-subtle: rgba(0, 0, 0, 0.07);
+  --border-default: rgba(0, 0, 0, 0.13);
+  --border-strong: rgba(0, 0, 0, 0.28);
+
+  --action-primary: var(--color-red);
+  --action-primary-text: #FFFFFF;
+  --action-ink: #0A0A0A;
+  --action-ink-text: #FFFFFF;
+
+  --status-success: #0E7A4E;
+  --status-success-bg: rgba(16, 185, 129, 0.10);
+  --status-success-border: rgba(16, 185, 129, 0.30);
+
+  --status-warning: #92560A;
+  --status-warning-bg: rgba(245, 158, 11, 0.12);
+  --status-warning-border: rgba(245, 158, 11, 0.38);
+
+  --status-error: #C8121A;
+  --status-error-bg: rgba(234, 24, 33, 0.08);
+  --status-error-border: rgba(234, 24, 33, 0.28);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+/* §3 ── Dark theme tokens (NRR Portal dead-neutral ramp) ─────────────────── */
+[data-theme="dark"] {
+  --bg-base: #080808;
+  --bg-surface: #111111;
+  --bg-elevated: #181818;
+  --bg-input: #141414;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+
+  --text-primary: #F5F4F0;
+  --text-secondary: rgba(245, 244, 240, 0.76);
+  --text-muted: rgba(245, 244, 240, 0.54);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-default: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.28);
+
+  --action-primary: var(--color-red);
+  --action-primary-text: #FFFFFF;
+  --action-ink: #F5F4F0;
+  --action-ink-text: #080808;
+
+  --status-success: #34D399;
+  --status-success-bg: rgba(16, 185, 129, 0.14);
+  --status-success-border: rgba(16, 185, 129, 0.35);
+
+  --status-warning: #FBBF24;
+  --status-warning-bg: rgba(245, 158, 11, 0.15);
+  --status-warning-border: rgba(245, 158, 11, 0.38);
+
+  --status-error: #F87171;
+  --status-error-bg: rgba(234, 24, 33, 0.16);
+  --status-error-border: rgba(234, 24, 33, 0.38);
+
+  --shadow-card: none;
+}
+
+/* §4 ── Base reset & typography ──────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
