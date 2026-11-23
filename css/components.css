@@ -763,15 +763,21 @@ select.c-input option {
   display: none;
 }
 
+/* Top-level @page rule (matches brandon-cv/cover-letter.html: 16mm top/bottom, 18mm left/right) */
+@page {
+  size: A4 portrait;
+  margin: 16mm 18mm;
+}
+
 @media print {
-  @page {
-    size: A4 portrait;
-    margin: 12mm 15mm;
-  }
+  html,
   body {
     background: #FFFFFF !important;
     color: #0A0A0A !important;
-    font-size: 10.5pt;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 9.8pt;
+    line-height: 1.45;
   }
   .c-header,
   .c-nav,
@@ -780,123 +786,189 @@ select.c-input option {
     display: none !important;
   }
   .c-shell {
-    max-width: 100%;
-    padding: 0;
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 2mm 2mm !important;
   }
   .c-print-sheet {
     display: block !important;
     color: #0A0A0A;
+    width: 100%;
   }
   .p-head {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
+    gap: 14px;
     border-bottom: 2px solid #0A0A0A;
-    padding-bottom: 10px;
-    margin-bottom: 14px;
+    padding-bottom: 9px;
+    margin-bottom: 12px;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
   .p-eyebrow {
-    font-size: 8pt;
+    font-size: 7pt;
     font-weight: 700;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.11em;
     text-transform: uppercase;
     color: #EA1821;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .p-title {
-    font-size: 15.5pt;
+    font-size: 14.5pt;
     font-weight: 800;
+    line-height: 1.15;
     margin: 0;
+  }
+  .p-subtitle {
+    font-size: 8.2pt;
+    color: #555555;
+    margin-top: 2px;
   }
   .p-meta {
     text-align: right;
-    font-size: 8.8pt;
+    font-size: 8pt;
+    line-height: 1.4;
     color: #3D3D3D;
+    flex-shrink: 0;
   }
   .p-summary-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin-bottom: 12px;
+    gap: 9px;
+    margin-bottom: 9px;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
   .p-rate-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    margin-bottom: 14px;
+    gap: 9px;
+    margin-bottom: 12px;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
   .p-box {
     border: 1px solid #CCCCCC;
     border-radius: 6px;
-    padding: 9px 11px;
+    padding: 8px 10px;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
   .p-box--strong {
-    border: 2px solid #0A0A0A;
+    border: 1.8px solid #0A0A0A;
+    background: #FAFAFA !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .p-box-label {
-    font-size: 7.8pt;
+    font-size: 7.2pt;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #555555;
   }
   .p-box-val {
-    font-size: 12.5pt;
+    font-size: 11.5pt;
     font-weight: 800;
-    margin-top: 3px;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
   }
   .p-box-sub {
-    font-size: 8pt;
+    font-size: 7.6pt;
     color: #444444;
     margin-top: 2px;
+    line-height: 1.32;
   }
   .p-section-title {
-    font-size: 9.5pt;
+    font-size: 8.8pt;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     margin: 12px 0 5px;
-    border-bottom: 1px solid #0A0A0A;
+    border-bottom: 1.2px solid #0A0A0A;
     padding-bottom: 3px;
+    break-after: avoid;
+    page-break-after: avoid;
   }
   .p-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 9pt;
+    font-size: 8.3pt;
     margin-bottom: 10px;
+  }
+  .p-table thead {
+    display: table-header-group;
+  }
+  .p-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
   .p-table th,
   .p-table td {
-    padding: 5px 8px;
-    border-bottom: 1px solid #E0E0E0;
+    padding: 4.5px 7px;
+    border-bottom: 1px solid #E2E2DF;
     text-align: left;
+    vertical-align: top;
+  }
+  .p-table td:first-child {
+    white-space: nowrap;
   }
   .p-table th {
-    background: #F2F2F0 !important;
+    background: #F4F4F1 !important;
     font-weight: 700;
-    font-size: 8pt;
+    font-size: 7.6pt;
     text-transform: uppercase;
+    letter-spacing: 0.04em;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
   .p-table .num {
     text-align: right;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .p-table tr.is-sub td {
+    background: #FAFAFA !important;
+    font-weight: 600;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .p-table tr.is-bold td {
     font-weight: 700;
     border-top: 1px solid #0A0A0A;
-    border-bottom: 2px solid #0A0A0A;
+    border-bottom: 1.8px solid #0A0A0A;
+  }
+  .p-compliance-note {
+    border: 1px solid #D97706;
+    background: #FFFBEB !important;
+    color: #78350F;
+    border-radius: 6px;
+    padding: 8px 11px;
+    font-size: 8.2pt;
+    line-height: 1.45;
+    margin: 8px 0 12px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .p-narrative {
     border: 1px solid #CCCCCC;
-    background: #FAFAFA;
+    background: #FAFAFA !important;
     border-radius: 6px;
-    padding: 9px 12px;
-    font-size: 8.8pt;
-    line-height: 1.48;
+    padding: 10px 13px;
+    font-size: 8.5pt;
+    line-height: 1.5;
     color: #222222;
-    margin-top: 10px;
+    margin-top: 8px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .p-narrative p {
     margin: 0 0 6px 0;
@@ -905,12 +977,15 @@ select.c-input option {
     margin-bottom: 0;
   }
   .p-footer {
-    margin-top: 14px;
-    padding-top: 7px;
+    margin-top: 16px;
+    padding-top: 8px;
     border-top: 1px solid #CCCCCC;
-    font-size: 8pt;
+    font-size: 7.8pt;
     color: #555555;
     display: flex;
     justify-content: space-between;
+    gap: 12px;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }
