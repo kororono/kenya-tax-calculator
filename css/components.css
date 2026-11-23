@@ -417,6 +417,7 @@ select.c-input option {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 12px;
 }
@@ -424,9 +425,25 @@ select.c-input option {
 .c-month-pickers {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   flex: 1;
-  max-width: 320px;
+  min-width: 240px;
+}
+
+.c-month-pickers select[data-field="month"] {
+  flex: 1 1 135px;
+  max-width: 170px;
+}
+
+.c-month-pickers select[data-field="legacy"] {
+  flex: 1 1 190px;
+  max-width: 240px;
+}
+
+.c-month-item.is-legacy {
+  border-style: dashed;
+  background: var(--bg-surface);
 }
 
 .c-month-grid {

@@ -1,25 +1,31 @@
 /**
  * Kenya Tax & Daily Rate Gross-Up Calculator (2026 Statutory Rates)
- * Google Apps Script Backend — Web App + Backward-Compatible Corrective Ledger in Google Sheets.
+ * Google Apps Script Backend — Web App + Backward-Compatible Corrective Ledger + Payments Log in Google Sheets.
  */
 
 var SHEET_PROP_KEY = 'LOG_SPREADSHEET_ID';
 var DEFAULT_SHEET_NAME = 'Mom Tax Calculations Log (2026)';
 var SUMMARY_TAB = 'Calculations Log';
 var MONTHLY_TAB = 'Monthly Breakdown Log';
+var PAYMENTS_TAB = 'Payments Log';
 
 var SUMMARY_HEADERS = [
   'Calc ID', 'Saved At (EAT)', 'Status', 'Supersedes ID', 'Correction Reason',
-  'Calc Mode', 'Billing Basis', 'Total Months', 'Daughter Days', 'Daughter Rate (KES)',
-  'Son Days', 'Son Rate (KES)', 'Total Days', 'Target Net (KES)', 'Gross Invoice (KES)',
-  'Additional Tax Top-Up (KES)', 'Prior Paid / Billed (KES)', 'Correction Delta / Balance Owed (KES)',
+  'Calc Mode', 'Billing Basis', 'Total Months', 'Child 1 Days', 'Child 1 Rate (KES)',
+  'Child 2 Days', 'Child 2 Rate (KES)', 'Total Days', 'Target Net (KES)', 'Gross / Combined Value (KES)',
+  'Additional Tax Top-Up (KES)', 'Payments Received / Prior Paid (KES)', 'Net Balance Due / Variance (KES)',
   'NSSF (KES)', 'SHA/SHIF (KES)', 'Housing Levy (KES)', 'Taxable Pay (KES)',
-  'Net PAYE (KES)', 'Final Take-Home (KES)', 'Effective Gross Daily Rate (KES)', 'State JSON'
+  'Net PAYE (KES)', 'Final Take-Home (KES)', 'Effective Taxed Daily Rate (KES)', 'State JSON'
 ];
 
 var MONTHLY_HEADERS = [
-  'Calc ID', 'Saved At (EAT)', 'Status', 'Month Label', 'Daughter Days', 'Son Days',
-  'Total Days', 'Base Amount (KES)', 'Gross (KES)', 'Deductions + PAYE (KES)', 'Net Take-Home (KES)'
+  'Calc ID', 'Saved At (EAT)', 'Status', 'Month Label', 'Tax Basis', 'Child 1 Days', 'Child 2 Days',
+  'Total Days', 'Base Amount (KES)', 'Gross Amount (KES)', 'Deductions + PAYE (KES)', 'Net Fee (KES)'
+];
+
+var PAYMENTS_HEADERS = [
+  'Calc ID', 'Saved At (EAT)', 'Status', 'Payment Date', 'M-PESA / Bank Reference',
+  'Channel / Note', 'Amount Received (KES)'
 ];
 
 function doGet(e) {
@@ -28,10 +34,8 @@ function doGet(e) {
     return ContentService.createTextOutput(JSON.stringify(listRes))
       .setMimeType(ContentService.MimeType.JSON);
   }
-  return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('Kenya Tax & Daily Rate Calculator (2026)')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=5')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  return ContentService.createTextOutput(JSON.stringify({ ok: true, status: 'ready' }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
@@ -77,8 +81,7 @@ function ensureSheetWithHeaders_(ss, tabName, headers) {
     var hdr = sheet.getRange(1, 1, 1, headers.length);
     hdr.setFontWeight('bold').setBackground('#1B365D').setFontColor('#FFFFFF');
     sheet.setFrozenRows(1);
-  } else if (tabName === SUMMARY_TAB && sheet.getLastColumn() < headers.length) {
-    // Backward compatibility: upgrade older 20-column log sheet headers in place
+  } else if (sheet.getLastColumn() < headers.length) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   }
   return sheet;
@@ -108,10 +111,12 @@ function saveCalculationToSheet(payload) {
   var supersedesId = payload.supersedesId || '';
   var sumSheet = ensureSheetWithHeaders_(ss, SUMMARY_TAB, SUMMARY_HEADERS);
   var mSheet = ensureSheetWithHeaders_(ss, MONTHLY_TAB, MONTHLY_HEADERS);
+  var pSheet = ensureSheetWithHeaders_(ss, PAYMENTS_TAB, PAYMENTS_HEADERS);
 
   if (supersedesId) {
     markRowStatus_(sumSheet, supersedesId, 'SUPERSEDED BY ' + calcId);
     markRowStatus_(mSheet, supersedesId, 'SUPERSEDED BY ' + calcId);
+    markRowStatus_(pSheet, supersedesId, 'SUPERSEDED BY ' + calcId);
   }
 
   sumSheet.appendRow([
@@ -147,9 +152,19 @@ function saveCalculationToSheet(payload) {
     for (var i = 0; i < payload.months.length; i++) {
       var m = payload.months[i];
       mSheet.appendRow([
-        calcId, timestamp, 'ACTIVE', m.label || '', Number(m.dDays || 0),
-        Number(m.sDays || 0), Number(m.totalDays || 0), Number(m.baseAmt || 0),
-        Number(m.gross || 0), Number(m.totalDed || 0), Number(m.net || 0)
+        calcId, timestamp, 'ACTIVE', m.label || '', m.legacy ? 'Legacy (Non-Tax)' : 'eTIMS Taxed',
+        Number(m.dDays || 0), Number(m.sDays || 0), Number(m.totalDays || 0),
+        Number(m.baseAmt || 0), Number(m.gross || 0), Number(m.totalDed || 0), Number(m.net || 0)
+      ]);
+    }
+  }
+
+  if (Array.isArray(payload.payments) && payload.payments.length > 0) {
+    for (var j = 0; j < payload.payments.length; j++) {
+      var pay = payload.payments[j];
+      pSheet.appendRow([
+        calcId, timestamp, 'ACTIVE', pay.date || '', pay.ref || '',
+        pay.note || '', Number(pay.amount || 0)
       ]);
     }
   }
@@ -168,15 +183,18 @@ function voidSavedCalculation(calcId, reason) {
   var ss = getOrCreateSpreadsheet_();
   var sumSheet = ensureSheetWithHeaders_(ss, SUMMARY_TAB, SUMMARY_HEADERS);
   var mSheet = ensureSheetWithHeaders_(ss, MONTHLY_TAB, MONTHLY_HEADERS);
+  var pSheet = ensureSheetWithHeaders_(ss, PAYMENTS_TAB, PAYMENTS_HEADERS);
   var label = 'VOIDED' + (reason ? ' (' + reason + ')' : '');
   markRowStatus_(sumSheet, calcId, label);
   markRowStatus_(mSheet, calcId, label);
+  markRowStatus_(pSheet, calcId, label);
   return { ok: true, calcId: calcId, history: listSavedCalculations().history };
 }
 
 function listSavedCalculations() {
   var ss = getOrCreateSpreadsheet_();
   var sumSheet = ensureSheetWithHeaders_(ss, SUMMARY_TAB, SUMMARY_HEADERS);
+  ensureSheetWithHeaders_(ss, PAYMENTS_TAB, PAYMENTS_HEADERS);
   var lastRow = sumSheet.getLastRow();
   if (lastRow < 2) {
     return { ok: true, sheetUrl: ss.getUrl(), history: [] };
@@ -186,49 +204,26 @@ function listSavedCalculations() {
   var list = [];
   for (var i = values.length - 1; i >= 0 && list.length < 30; i--) {
     var r = values[i];
-    var isLegacyRow = (String(r[0]).indexOf('CALC-') !== 0 && String(r[2]).indexOf('ACTIVE') !== 0 && String(r[2]).indexOf('SUPERSEDED') !== 0 && String(r[2]).indexOf('VOIDED') !== 0);
-    if (isLegacyRow) {
-      // Backward-compatible read of legacy 20-column row format
-      list.push({
-        calcId: 'LEGACY-ROW-' + (i + 2),
-        timestamp: String(r[0]),
-        status: 'ACTIVE (Legacy)',
-        supersedesId: '',
-        correctionReason: String(r[19] || ''),
-        totalDays: Number(r[8] || 0),
-        targetNet: Number(r[9] || 0),
-        gross: Number(r[10] || 0),
-        additionalPay: Number(r[11] || 0),
-        priorPaid: 0,
-        balanceOwed: Number(r[10] || 0),
-        rawState: {
-          daughterRate: Number(r[5] || 3500),
-          sonRate: Number(r[7] || 2500),
-          monthRows: [{ label: 'Imported Legacy Entry', dDays: Number(r[4] || 0), sDays: Number(r[6] || 0) }]
-        }
-      });
-    } else {
-      var parsedState = {};
-      try {
-        parsedState = r[25] ? JSON.parse(String(r[25])) : {};
-      } catch (e) {
-        parsedState = {};
-      }
-      list.push({
-        calcId: String(r[0]),
-        timestamp: String(r[1]),
-        status: String(r[2]),
-        supersedesId: String(r[3] || ''),
-        correctionReason: String(r[4] || ''),
-        totalDays: Number(r[12] || 0),
-        targetNet: Number(r[13] || 0),
-        gross: Number(r[14] || 0),
-        additionalPay: Number(r[15] || 0),
-        priorPaid: Number(r[16] || 0),
-        balanceOwed: Number(r[17] || 0),
-        rawState: parsedState
-      });
+    var parsedState = {};
+    try {
+      parsedState = r[25] ? JSON.parse(String(r[25])) : {};
+    } catch (e) {
+      parsedState = {};
     }
+    list.push({
+      calcId: String(r[0]),
+      timestamp: String(r[1]),
+      status: String(r[2]),
+      supersedesId: String(r[3] || ''),
+      correctionReason: String(r[4] || ''),
+      totalDays: Number(r[12] || 0),
+      targetNet: Number(r[13] || 0),
+      gross: Number(r[14] || 0),
+      additionalPay: Number(r[15] || 0),
+      priorPaid: Number(r[16] || 0),
+      balanceOwed: Number(r[17] || 0),
+      rawState: parsedState
+    });
   }
   return { ok: true, sheetUrl: ss.getUrl(), history: list };
 }
