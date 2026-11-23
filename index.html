@@ -13,9 +13,9 @@
   <!-- Header -->
   <header class="c-header">
     <div>
-      <div class="ed-eyebrow">Kenya 2026 Statutory Tax &amp; eTIMS Calculator</div>
-      <h1 class="c-title">Teaching Services &amp; Tax Calculator</h1>
-      <p class="c-subtitle">Enter the months and days taught, record cumulative payments received, and export a professional statement.</p>
+      <div class="ed-eyebrow">Kenya 2026 Individual Self-Assessment (IT1) &amp; eTIMS Calculator</div>
+      <h1 class="c-title">Teaching Services &amp; Self-Assessment Tax Calculator</h1>
+      <p class="c-subtitle">Freelance / independent service provider basis (non-PAYE): enter months and days taught, record cumulative payments received, and export a clean statement.</p>
     </div>
     <div class="c-btn-row">
       <a href="#" target="_blank" rel="noopener" class="c-btn c-btn--ghost c-btn--sm" id="btnOpenSheetTop" style="display:none;text-decoration:none;">Open Google Sheet</a>
@@ -87,13 +87,39 @@
           <input type="number" class="c-input" id="sonRate" value="2000" min="0" step="50">
         </div>
         <div class="c-field">
-          <label class="c-label" for="billingMode">Billing &amp; Tax Assessment Basis</label>
+          <label class="c-label" for="billingMode">Billing &amp; IT1 Assessment Basis</label>
           <select class="c-input" id="billingMode">
-            <option value="lump" selected>Consolidated Lump-Sum Invoice</option>
+            <option value="lump" selected>Consolidated Lump-Sum (Annual IT1 Bands)</option>
             <option value="monthly">Assessed Separately Month-by-Month</option>
           </select>
         </div>
       </div>
+
+      <details id="saOptionsBox" style="margin-top:14px;">
+        <summary style="cursor:pointer;font-weight:600;font-size:0.88rem;color:var(--text-secondary);">
+          Self-Assessment Options: Prior 2026 Income &amp; Allowable eTIMS Expenses (Optional — click to open)
+        </summary>
+        <div class="c-grid-3" style="margin-top:12px;">
+          <div class="c-field">
+            <label class="c-label" for="stackLegacyMode">2026 Annual IT1 Income Context</label>
+            <select class="c-input" id="stackLegacyMode">
+              <option value="stack" selected>Include Legacy 2026 Months in Annual Bands</option>
+              <option value="standalone">Standalone eTIMS Period Only (Start at KES 0)</option>
+            </select>
+            <span class="c-hint">KRA IT1 assesses all 2026 income together; stacking avoids under-providing tax.</span>
+          </div>
+          <div class="c-field">
+            <label class="c-label" for="otherPriorIncome">Other 2026 Taxable Income (KES)</label>
+            <input type="number" class="c-input" id="otherPriorIncome" value="0" min="0" step="500">
+            <span class="c-hint">Any other 2026 income outside this sheet (0 if tutoring only).</span>
+          </div>
+          <div class="c-field">
+            <label class="c-label" for="etimsExpenses">Allowable eTIMS Business Expenses (KES)</label>
+            <input type="number" class="c-input" id="etimsExpenses" value="0" min="0" step="100">
+            <span class="c-hint">Only expenses with valid eTIMS receipts (reduces taxable profit).</span>
+          </div>
+        </div>
+      </details>
     </section>
 
     <!-- Step 2: Months & Teaching Days -->
@@ -200,7 +226,7 @@
         <div class="c-stat c-stat--tax">
           <div class="c-stat-label">2. Statutory Tax &amp; Levy Remittance</div>
           <div class="c-stat-value" id="statTax">+ KES 0.00</div>
-          <div class="c-stat-note" id="statTaxNote">PAYE + NSSF + SHA + Housing Levy</div>
+          <div class="c-stat-note" id="statTaxNote">IT1 Income Tax + SHA/SHIF + Housing Levy</div>
         </div>
         <div class="c-stat c-stat--invoice">
           <div class="c-stat-label">3. Total Gross eTIMS Invoice Amount</div>
@@ -246,8 +272,9 @@
 
       <details open>
         <summary style="cursor:pointer;font-weight:700;font-size:0.92rem;margin-bottom:10px;">
-          Itemized 2026 Kenya Statutory &amp; PAYE Tax Breakdown
+          Itemized 2026 Kenya Individual Self-Assessment (IT1) Tax Breakdown
         </summary>
+        <div id="installmentNoticeBox" class="c-banner" style="display:none;margin-bottom:10px;"></div>
         <div class="c-table-wrap">
           <table class="c-table">
             <thead>
@@ -345,23 +372,25 @@
     <div class="c-card">
       <div class="c-card-head">
         <div>
-          <h2 class="c-card-title">2026 Kenya Statutory Tax Rates</h2>
-          <p class="c-card-desc">Pre-set to official 2026 KRA PAYE bands, NSSF Year 4, SHA/SHIF, and Affordable Housing Levy rules.</p>
+          <h2 class="c-card-title">2026 Kenya Individual Self-Assessment (IT1) Rules</h2>
+          <p class="c-card-desc">Pre-set for a non-PAYE freelance service provider: Annual IT1 bands (10%–35%), KES 28,800/yr Personal Relief, SHA/SHIF (2.75%), Affordable Housing Levy (1.5%), and 0% mandatory NSSF.</p>
         </div>
       </div>
 
       <div class="c-grid-3">
         <div class="c-field">
-          <label class="c-label" for="pNssfRate">NSSF Rate (%)</label>
-          <input type="number" class="c-input" id="pNssfRate" value="6" step="0.1">
+          <label class="c-label" for="pNssfRate">Voluntary NSSF Rate (%)</label>
+          <input type="number" class="c-input" id="pNssfRate" value="0" min="0" step="0.5">
+          <span class="c-hint">0% default (NSSF is voluntary for non-PAYE freelancers).</span>
         </div>
         <div class="c-field">
-          <label class="c-label" for="pNssfCap">NSSF Monthly Earnings Cap (KES)</label>
+          <label class="c-label" for="pNssfCap">Voluntary NSSF Monthly Cap (KES)</label>
           <input type="number" class="c-input" id="pNssfCap" value="108000" step="1000">
         </div>
         <div class="c-field">
           <label class="c-label" for="pShifRate">SHA / SHIF Rate (%)</label>
           <input type="number" class="c-input" id="pShifRate" value="2.75" step="0.05">
+          <span class="c-hint">Pre-tax allowable deduction under Tax Laws (Amendment) Act 2024.</span>
         </div>
         <div class="c-field">
           <label class="c-label" for="pShifMin">SHA / SHIF Minimum (KES/mo)</label>
@@ -370,10 +399,12 @@
         <div class="c-field">
           <label class="c-label" for="pAhlRate">Affordable Housing Levy Rate (%)</label>
           <input type="number" class="c-input" id="pAhlRate" value="1.5" step="0.1">
+          <span class="c-hint">Applies to non-salaried individuals (1.5% pre-tax deductible).</span>
         </div>
         <div class="c-field">
-          <label class="c-label" for="pRelief">Monthly Personal Relief (KES)</label>
-          <input type="number" class="c-input" id="pRelief" value="2400" step="100">
+          <label class="c-label" for="pRelief">Annual Personal Relief (KES/yr)</label>
+          <input type="number" class="c-input" id="pRelief" value="28800" step="1200">
+          <span class="c-hint">KES 28,800/yr resident relief on IT1 (KES 2,400/mo equivalent).</span>
         </div>
       </div>
     </div>

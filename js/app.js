@@ -38,6 +38,9 @@
   var appState = {
     calcMode: 'reverse',
     billingMode: 'lump',
+    stackLegacyInYear: true,
+    otherPriorIncome: 0,
+    expenses: 0,
     daughterRate: 3500,
     sonRate: 2000,
     maxDaysMonth: 20,
@@ -57,6 +60,11 @@
 
   function fmt(num) {
     return Number(num || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function fmtKes(num) {
+    var n = Number(num || 0);
+    return (n < -0.004 ? '-KES ' : 'KES ') + fmt(Math.abs(n));
   }
 
   function el(id) {
@@ -123,17 +131,25 @@
     el('btnThemeToggle').textContent = (next === 'dark') ? 'Light Mode' : 'Dark Mode';
   }
 
+  function numInput(id, fallback) {
+    var raw = el(id) ? el(id).value : '';
+    return (raw !== '' && !isNaN(Number(raw))) ? Number(raw) : fallback;
+  }
+
   function readTaxParams() {
-    var nssfRate = Number(el('pNssfRate').value || 6) / 100;
-    var nssfCap = Number(el('pNssfCap').value || 108000);
+    var nssfRate = Math.max(0, numInput('pNssfRate', 0)) / 100;
+    var nssfCap = Math.max(0, numInput('pNssfCap', 108000));
+    var annualRelief = Math.max(0, numInput('pRelief', 28800));
     return {
       nssfRate: nssfRate,
       nssfCap: nssfCap,
       nssfMax: nssfRate * nssfCap,
-      shifRate: Number(el('pShifRate').value || 2.75) / 100,
-      shifMin: Number(el('pShifMin').value || 300),
-      ahlRate: Number(el('pAhlRate').value || 1.5) / 100,
-      relief: Number(el('pRelief').value || 2400)
+      shifRate: Math.max(0, numInput('pShifRate', 2.75)) / 100,
+      shifMin: Math.max(0, numInput('pShifMin', 300)),
+      ahlRate: Math.max(0, numInput('pAhlRate', 1.5)) / 100,
+      annualRelief: annualRelief,
+      monthlyRelief: annualRelief / 12,
+      installmentThreshold: 40000
     };
   }
 
@@ -242,17 +258,26 @@
   function buildNarrativeParagraphs(res) {
     var ov = res.overall;
     var cr = res.childRates;
+    var stackNote = (ov.priorTaxable > 0)
+      ? (' Because all 2026 tutoring income (including KES ' + fmt(ov.priorTaxable) + ' from earlier 2026 months) is aggregated on the annual IT1 return, the eTIMS tranche is assessed at its true marginal IT1 tax brackets after applying the KES 28,800 annual Personal Relief.')
+      : '';
     var p1 =
-      'Why the Invoice Amount Is Adjusted for Statutory Taxes: Issuing a formal eTIMS tax invoice for tax-deduction purposes creates a direct statutory self-assessment tax liability under Kenya law. ' +
+      'Why the Invoice Amount Is Adjusted for Self-Assessment Taxes: Issuing a formal eTIMS invoice as an independent service provider creates a direct tax and statutory levy obligation under Kenyan law (Individual Self-Assessment IT1, not employer PAYE). ' +
       'To preserve the agreed net take-home daily rates of KES ' + fmt(appState.daughterRate) + '/day for Child 1 and KES ' + fmt(appState.sonRate) + '/day for Child 2 ' +
       '(net eTIMS-assessed fee of KES ' + fmt(ov.net) + ' across ' + res.taxedDays + ' taxable working days), the gross eTIMS invoice amount is KES ' + fmt(ov.gross) + '. ' +
       'This corresponds to an effective tax-inclusive daily rate of KES ' + fmt(cr.c1EffDay) + '/day for Child 1 and KES ' + fmt(cr.c2EffDay) + '/day for Child 2.' +
-      (res.hasLegacyMonths ? (' Prior settled work totaling KES ' + fmt(res.legacyBaseTotal) + ' is recorded strictly at the historical non-tax base rates with zero tax added.') : '');
+      (res.hasLegacyMonths ? (' Prior settled work totaling KES ' + fmt(res.legacyBaseTotal) + ' is recorded at the historical non-tax base rates with zero tax added.') : '') +
+      stackNote;
+    var parts = [
+      'KRA Individual Income Tax (IT1) of KES ' + fmt(ov.incomeTax) + ' (after KES ' + fmt(ov.relief) + ' Personal Relief)',
+      'SHA / SHIF Health Insurance at 2.75% (KES ' + fmt(ov.shif) + ')',
+      'Affordable Housing Levy at 1.5% (KES ' + fmt(ov.ahl) + ')'
+    ];
+    if (ov.nssf > 0) parts.push('Voluntary NSSF contribution (KES ' + fmt(ov.nssf) + ')');
     var p2 =
       'Direct Statutory Remittance (Zero Additional Markup): The additional KES ' + fmt(res.additionalPay) + ' added above the net service fee is not retained as extra earnings. ' +
-      'It is immediately directed to the mandatory statutory deductions required for compliance: KRA PAYE Income Tax (KES ' + fmt(ov.paye) + ', after deducting the KES ' + fmt(ov.relief) + ' Personal Relief), ' +
-      'SHA / SHIF Health Insurance at 2.75% (KES ' + fmt(ov.shif) + '), NSSF Tier I & II at 6% (KES ' + fmt(ov.nssf) + '), and the Affordable Housing Levy at 1.5% (KES ' + fmt(ov.ahl) + '). ' +
-      'This ensures full statutory compliance through official channels without any tax default or reduction in the agreed take-home pay.';
+      'It covers the mandatory self-assessment remittances due under Kenyan law: ' + parts.join(', ') + '. ' +
+      'This ensures full KRA, SHA, and Housing Levy compliance on the annual IT1 return without reducing the agreed take-home pay.';
     return [p1, p2];
   }
 
@@ -262,6 +287,9 @@
     appState.sonRate = Math.max(0, Number(el('sonRate').value || 0));
     appState.maxDaysMonth = Math.max(1, Number(el('maxDaysMonth').value || 20));
     appState.billingMode = el('billingMode').value;
+    appState.stackLegacyInYear = (el('stackLegacyMode').value === 'stack');
+    appState.otherPriorIncome = Math.max(0, Number(el('otherPriorIncome').value || 0));
+    appState.expenses = Math.max(0, Number(el('etimsExpenses').value || 0));
     appState.priorPaid = Math.max(0, Number(el('priorPaid').value || 0));
     appState.manualAdj = Number(el('manualAdj').value || 0);
     appState.correctionReason = el('correctionReason').value.trim();
@@ -308,9 +336,10 @@
       : (res.totalDays + ' total days (' + res.daughterDays + 'd Child 1, ' + res.sonDays + 'd Child 2)');
 
     el('statTax').textContent = '+ KES ' + fmt(res.additionalPay);
+    var taxBodies = ov.nssf > 0 ? 'KRA IT1/SHA/AHL/NSSF' : 'KRA IT1 / SHA / AHL';
     el('statTaxNote').textContent = (ov.gross > 0)
-      ? (fmt((res.additionalPay / ov.gross) * 100) + '% of eTIMS invoice remitted to KRA/NSSF/SHA/AHL')
-      : 'PAYE + NSSF + SHA + Housing Levy';
+      ? (fmt((res.additionalPay / ov.gross) * 100) + '% of eTIMS invoice remitted to ' + taxBodies)
+      : 'IT1 Income Tax + SHA/SHIF + Housing Levy';
 
     el('statGross').textContent = 'KES ' + fmt(res.hasLegacyMonths ? res.taxedGrossTotal : res.combinedGross);
     el('statGrossNote').textContent = res.hasLegacyMonths
@@ -400,21 +429,39 @@
 
   function getProofRows(res, p) {
     var ov = res.overall;
+    var isMonthly = (appState.billingMode === 'monthly');
     var rows = [
-      ['is-sub', 'Gross eTIMS Invoice Amount (Taxed Period)', ov.gross, 'Pre-tax total on eTIMS invoice (' + res.taxedDays + ' taxed days)'],
-      ['', 'Less: NSSF Contribution (Tier I + II)', -ov.nssf, fmt(p.nssfRate * 100) + '% up to KES ' + fmt(p.nssfCap) + '/mo (max KES ' + fmt(p.nssfMax) + '/mo)'],
-      ['', 'Less: SHA / SHIF Health Insurance', -ov.shif, fmt(p.shifRate * 100) + '% of Gross (min KES ' + fmt(p.shifMin) + ')'],
-      ['', 'Less: Affordable Housing Levy (AHL)', -ov.ahl, fmt(p.ahlRate * 100) + '% of Gross'],
-      ['is-sub', 'Taxable Income (After Pre-Tax Deductions)', ov.taxable, 'Gross minus NSSF, SHA/SHIF, and Housing Levy'],
-      ['', 'PAYE Band 1 (First KES 24,000 @ 10%)', ov.b1, '10% statutory tax bracket'],
-      ['', 'PAYE Band 2 (Next KES 8,333 @ 25%)', ov.b2, '25% statutory tax bracket'],
-      ['', 'PAYE Band 3 (32,334 – 500,000 @ 30%)', ov.b3, '30% statutory tax bracket'],
-      ['is-sub', 'Gross Income Tax', ov.grossTax, 'Total tax before Personal Relief'],
-      ['', 'Less: Monthly Personal Relief', -ov.relief, 'KES ' + fmt(p.relief) + ' per tax period'],
-      ['is-tax', 'Net PAYE Tax Payable to KRA', ov.paye, 'Gross Tax minus Personal Relief'],
-      ['is-tax', 'Total Statutory Tax & Levy Remittance', ov.totalDed, 'NSSF + SHA/SHIF + Housing Levy + Net PAYE'],
-      ['is-total', 'Net Service Fee — eTIMS Period (Take-Home)', ov.net, 'Agreed net fee retained for taxable months']
+      ['is-sub', 'Gross eTIMS Invoice Amount (Taxed Period)', ov.gross, 'Pre-tax total on eTIMS invoice (' + res.taxedDays + ' taxed days)']
     ];
+    if (ov.nssf > 0) {
+      rows.push(['', 'Less: Voluntary NSSF Contribution', -ov.nssf, fmt(p.nssfRate * 100) + '% up to KES ' + fmt(p.nssfCap) + '/mo cap']);
+    }
+    rows.push(['', 'Less: SHA / SHIF Health Insurance', -ov.shif, fmt(p.shifRate * 100) + '% of Gross (min KES ' + fmt(p.shifMin) + '/mo; pre-tax deductible)']);
+    rows.push(['', 'Less: Affordable Housing Levy (AHL)', -ov.ahl, fmt(p.ahlRate * 100) + '% of Gross (non-salaried levy; pre-tax deductible)']);
+    if (ov.expenses > 0) {
+      rows.push(['', 'Less: Allowable eTIMS Business Expenses', -ov.expenses, 'Valid eTIMS-backed business costs (ITA s.15)']);
+    }
+    rows.push(['is-sub', 'Chargeable Income — eTIMS Period', ov.taxable, 'Gross minus SHIF, AHL' + (ov.nssf > 0 ? ', NSSF' : '') + (ov.expenses > 0 ? ', and eTIMS expenses' : '')]);
+    if (!isMonthly && ov.priorTaxable > 0) {
+      rows.push(['', 'Plus: Prior 2026 Income Stacked on IT1 Return', ov.priorTaxable, 'Earlier 2026 income using lower annual bands / relief']);
+      rows.push(['is-sub', 'Total 2026 Annual Chargeable Income (IT1)', ov.totalYearTaxable, 'Combined 2026 taxable income assessed on IT1']);
+    }
+    var b1Lbl = isMonthly ? 'Band 1 (First KES 24,000/mo @ 10%)' : 'IT1 Band 1 (First KES 288,000/yr @ 10%)';
+    var b2Lbl = isMonthly ? 'Band 2 (Next KES 8,333/mo @ 25%)' : 'IT1 Band 2 (Next KES 100,000/yr @ 25%)';
+    var b3Lbl = isMonthly ? 'Band 3 (32,334 – 500,000/mo @ 30%)' : 'IT1 Band 3 (388,001 – 6,000,000/yr @ 30%)';
+    var b4Lbl = isMonthly ? 'Band 4 (500,001 – 800,000/mo @ 32.5%)' : 'IT1 Band 4 (6,000,001 – 9,600,000/yr @ 32.5%)';
+    var b5Lbl = isMonthly ? 'Band 5 (Above KES 800,000/mo @ 35%)' : 'IT1 Band 5 (Above KES 9,600,000/yr @ 35%)';
+    rows.push(['', b1Lbl, ov.b1, '10% marginal IT1 bracket (eTIMS share)']);
+    if (ov.b2 > 0) rows.push(['', b2Lbl, ov.b2, '25% marginal IT1 bracket (eTIMS share)']);
+    if (ov.b3 > 0) rows.push(['', b3Lbl, ov.b3, '30% marginal IT1 bracket (eTIMS share)']);
+    if (ov.b4 > 0) rows.push(['', b4Lbl, ov.b4, '32.5% marginal IT1 bracket (eTIMS share)']);
+    if (ov.b5 > 0) rows.push(['', b5Lbl, ov.b5, '35% marginal IT1 bracket (eTIMS share)']);
+    rows.push(['is-sub', 'Gross Individual Income Tax (eTIMS Share)', ov.grossTax, 'Tax before Personal Relief']);
+    rows.push(['', 'Less: Resident Personal Relief Applied', -ov.relief, isMonthly ? ('KES ' + fmt(p.monthlyRelief) + '/mo equivalent') : (ov.priorTaxable > 0 ? ('Remaining share of KES ' + fmt(p.annualRelief) + '/yr IT1 relief') : ('KES ' + fmt(p.annualRelief) + '/yr annual relief (ITA s.30)'))]);
+    rows.push(['is-tax', 'Net Individual Income Tax Payable to KRA (IT1)', ov.incomeTax, 'Gross Tax minus Personal Relief (due by 30 June)']);
+    rows.push(['is-tax', 'Total Statutory Tax & Levy Remittance', ov.totalDed, (ov.nssf > 0 ? 'Voluntary NSSF + ' : '') + 'SHA/SHIF + Housing Levy + Net IT1 Income Tax']);
+    rows.push(['is-total', 'Net Service Fee — eTIMS Period (Take-Home)', ov.net, 'Agreed net fee retained for taxable months']);
+
     if (res.hasLegacyMonths) {
       rows.push(['is-sub', 'Plus: Historical Pre-Tax Work (Old System, 0% Tax)', res.legacyBaseTotal, res.legacyDays + ' legacy days at base rates (no eTIMS tax)']);
       rows.push(['is-sub', 'Total Combined Account Value (Legacy + eTIMS Gross)', res.combinedGross, 'Legacy Work + eTIMS Gross Invoice']);
@@ -430,8 +477,22 @@
   function renderProofTable(res, p) {
     var rows = getProofRows(res, p);
     el('proofTableBody').innerHTML = rows.map(function (r) {
-      return '<tr class="' + r[0] + '"><td>' + r[1] + '</td><td class="num">KES ' + fmt(r[2]) + '</td><td>' + r[3] + '</td></tr>';
+      return '<tr class="' + r[0] + '"><td>' + r[1] + '</td><td class="num">' + fmtKes(r[2]) + '</td><td>' + r[3] + '</td></tr>';
     }).join('');
+    var instBox = el('installmentNoticeBox');
+    if (instBox) {
+      if (res.installmentTaxTriggered) {
+        instBox.style.display = 'flex';
+        instBox.className = 'c-banner is-visible c-banner--warn';
+        instBox.innerHTML =
+          '<div><strong>KRA Installment Tax Threshold Exceeded (&gt; KES ' + fmt(p.installmentThreshold) + '/yr):</strong> ' +
+          'Projected annual IT1 income tax is <strong>KES ' + fmt(res.overall.totalYearTax) + '</strong>. ' +
+          'Under KRA Installment Tax rules, non-PAYE individuals owing over KES 40,000/yr pay 4 equal installments (25% each) on the 20th of months 4, 6, 9, and 12 (20% penalty if underpaid).</div>';
+      } else {
+        instBox.style.display = 'none';
+        instBox.className = 'c-banner';
+      }
+    }
   }
 
   function renderPlannerView(params) {
@@ -468,7 +529,9 @@
     var ov = res.overall;
     var cr = res.childRates;
     var dateStr = new Date().toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' });
-    var basisStr = (appState.billingMode === 'lump') ? 'Consolidated Lump-Sum Assessment' : 'Month-by-Month Tax Schedule';
+    var basisStr = (appState.billingMode === 'lump')
+      ? ('Annual IT1 Self-Assessment' + (ov.priorTaxable > 0 ? ' (Stacked 2026)' : ''))
+      : 'Month-by-Month IT1 Schedule';
     var monthRowsHtml = res.months.map(function (m) {
       return (
         '<tr>' +
@@ -483,30 +546,36 @@
     }).join('');
 
     var proofRowsHtml = getProofRows(res, p).map(function (r) {
-      var boldCls = (r[0] === 'is-total' || r[0] === 'is-tax') ? 'is-bold' : '';
-      return '<tr class="' + boldCls + '"><td>' + r[1] + '</td><td>' + r[3] + '</td><td class="num">KES ' + fmt(r[2]) + '</td></tr>';
+      var boldCls = (r[0] === 'is-total' || r[0] === 'is-tax') ? 'is-bold' : (r[0] === 'is-sub' ? 'is-sub' : '');
+      return '<tr class="' + boldCls + '"><td>' + r[1] + '</td><td>' + r[3] + '</td><td class="num">' + fmtKes(r[2]) + '</td></tr>';
     }).join('');
 
+    var secNum = 3;
     var paymentsHtml = '';
     if (appState.payments.length > 0) {
       var payRows = appState.payments.map(function (pay) {
         return '<tr><td>' + esc(pay.date) + '</td><td><strong>' + esc(pay.ref) + '</strong></td><td>' + esc(pay.note || 'On-account transfer') + '</td><td class="num">KES ' + fmt(pay.amount) + '</td></tr>';
       }).join('');
       paymentsHtml =
-        '<div class="p-section-title">3. Recorded Payments Received (Cumulative / On-Account)</div>' +
+        '<div class="p-section-title">' + secNum + '. Recorded Payments Received (Cumulative / On-Account)</div>' +
         '<table class="p-table">' +
           '<thead><tr><th>Date of Receipt</th><th>M-PESA / Bank Reference</th><th>Channel / Description</th><th class="num">Amount Received (KES)</th></tr></thead>' +
           '<tbody>' + payRows +
             '<tr class="is-bold"><td colspan="3">Total Recorded Payments Received (' + appState.payments.length + ' transactions)</td><td class="num">KES ' + fmt(res.recordedPaid) + '</td></tr>' +
           '</tbody>' +
         '</table>';
+      secNum += 1;
     }
+
+    var installmentHtml = res.installmentTaxTriggered
+      ? ('<div class="p-compliance-note"><strong>Installment Tax Notice (ITA s.12):</strong> Total annual IT1 tax (KES ' + fmt(ov.totalYearTax) + ') exceeds KES ' + fmt(p.installmentThreshold) + '/year. Quarterly installments (25% each on the 20th of months 4, 6, 9, and 12) apply; annual IT1 return is due by 30 June.</div>')
+      : '';
 
     var narrativeHtml = '';
     if (appState.includeNarrative) {
       var paras = buildNarrativeParagraphs(res);
       narrativeHtml =
-        '<div class="p-section-title">' + (appState.payments.length > 0 ? '4' : '3') + '. Explanatory Note on eTIMS Tax Gross-Up &amp; Statutory Remittance</div>' +
+        '<div class="p-section-title">' + secNum + '. Explanatory Note on eTIMS Tax Gross-Up &amp; Self-Assessment Remittance</div>' +
         '<div class="p-narrative">' +
           paras.map(function (para) { return '<p>' + esc(para) + '</p>'; }).join('') +
         '</div>';
@@ -515,12 +584,14 @@
     el('printStatementSheet').innerHTML =
       '<div class="p-head">' +
         '<div>' +
-          '<div class="p-eyebrow">Kenya 2026 Statutory Tax &amp; eTIMS Gross-Up Statement</div>' +
+          '<div class="p-eyebrow">Kenya 2026 Individual Self-Assessment (IT1) &amp; eTIMS Statement</div>' +
           '<h1 class="p-title">Teaching Services &amp; Statutory Tax Statement</h1>' +
+          '<div class="p-subtitle">Independent Service Provider (Non-PAYE) &bull; Reconciliation &amp; Tax Schedule</div>' +
         '</div>' +
         '<div class="p-meta">' +
-          '<div><strong>Date:</strong> ' + esc(dateStr) + '</div>' +
-          '<div><strong>Assessment Basis:</strong> ' + esc(basisStr) + '</div>' +
+          '<div><strong>Statement Date:</strong> ' + esc(dateStr) + '</div>' +
+          '<div><strong>Tax Regime:</strong> KRA Individual IT1 (Non-PAYE)</div>' +
+          '<div><strong>Basis:</strong> ' + esc(basisStr) + '</div>' +
           (appState.supersedesId ? '<div><strong>Revision of:</strong> ' + esc(appState.supersedesId) + '</div>' : '') +
         '</div>' +
       '</div>' +
@@ -558,15 +629,16 @@
         '<thead><tr><th>Month</th><th>Tax Basis</th><th class="num">Child 1</th><th class="num">Child 2</th><th class="num">Net Fee (KES)</th><th class="num">Gross Amount (KES)</th></tr></thead>' +
         '<tbody>' + monthRowsHtml + '</tbody>' +
       '</table>' +
-      '<div class="p-section-title">2. Itemized 2026 Kenya Statutory &amp; PAYE Tax Calculation</div>' +
+      '<div class="p-section-title">2. Itemized 2026 Kenya Individual Self-Assessment (IT1) Calculation</div>' +
       '<table class="p-table">' +
         '<thead><tr><th>Line Item</th><th>Statutory Basis (2026 Kenya Law)</th><th class="num">Amount (KES)</th></tr></thead>' +
         '<tbody>' + proofRowsHtml + '</tbody>' +
       '</table>' +
+      installmentHtml +
       paymentsHtml +
       narrativeHtml +
       '<div class="p-footer">' +
-        '<span>Computed under 2026 KRA PAYE Bands, NSSF Year 4 (6% up to KES 108,000), SHA/SHIF (2.75%), and Affordable Housing Levy (1.5%).</span>' +
+        '<span>Computed under Kenya Income Tax Act (Cap 470, Resident IT1 Self-Assessment), SHA/SHIF (' + fmt(p.shifRate * 100) + '%), and AHL (' + fmt(p.ahlRate * 100) + '%)' + (ov.nssf > 0 ? (', Voluntary NSSF (' + fmt(p.nssfRate * 100) + '%)') : ', 0% NSSF') + '.</span>' +
         '<span>Child 1 Gross: KES ' + fmt(cr.c1EffDay) + '/d | Child 2 Gross: KES ' + fmt(cr.c2EffDay) + '/d</span>' +
       '</div>';
   }
@@ -579,14 +651,14 @@
     var ov = r.overall;
     var cr = r.childRates;
     var rows = [
-      ['TEACHING SERVICES — KENYA 2026 STATUTORY TAX & eTIMS STATEMENT', '', '', '', '', ''],
-      ['Generated Date', new Date().toLocaleString('en-KE'), 'Assessment Basis', (appState.billingMode === 'lump' ? 'Consolidated Lump-Sum Invoice' : 'Month-by-Month'), '', ''],
+      ['TEACHING SERVICES — KENYA 2026 INDIVIDUAL SELF-ASSESSMENT (IT1) & eTIMS STATEMENT', '', '', '', '', ''],
+      ['Generated Date', new Date().toLocaleString('en-KE'), 'Assessment Basis', (appState.billingMode === 'lump' ? 'Annual IT1 Self-Assessment (Lump-Sum)' : 'Month-by-Month IT1 Schedule'), '', ''],
       ['Child 1 Base Net Rate (KES/day)', appState.daughterRate.toFixed(2), 'Child 1 Effective Tax-Inclusive Rate (KES/day)', cr.c1EffDay.toFixed(2), 'Child 1 Days', r.daughterDays],
       ['Child 2 Base Net Rate (KES/day)', appState.sonRate.toFixed(2), 'Child 2 Effective Tax-Inclusive Rate (KES/day)', cr.c2EffDay.toFixed(2), 'Child 2 Days', r.sonDays],
       ['', '', '', '', '', ''],
       ['SECTION 1: HEADLINE SUMMARY', 'Amount (KES)', 'Notes', '', '', ''],
       ['1. Combined Net Service Fee (Legacy + eTIMS)', r.combinedNet.toFixed(2), 'Legacy Net: KES ' + r.legacyBaseTotal.toFixed(2) + ' | eTIMS Net: KES ' + ov.net.toFixed(2), '', '', ''],
-      ['2. Statutory Tax & Levy Remittance (eTIMS Portion)', r.additionalPay.toFixed(2), 'PAYE + NSSF + SHA/SHIF + Housing Levy on taxed months only', '', '', ''],
+      ['2. Statutory Tax & Levy Remittance (eTIMS Portion)', r.additionalPay.toFixed(2), 'KRA IT1 Income Tax + SHA/SHIF + Housing Levy on taxed months only', '', '', ''],
       ['3. eTIMS Gross Invoice (Taxed Months)', ov.gross.toFixed(2), 'Combined Account Value (Legacy + eTIMS): KES ' + r.combinedGross.toFixed(2), '', '', '']
     ];
     if (r.priorPaid > 0 || r.manualAdj !== 0) {
@@ -600,7 +672,7 @@
     });
     rows.push(['TOTAL', r.totalDays + ' days total', r.daughterDays, r.sonDays, r.combinedNet.toFixed(2), r.combinedGross.toFixed(2)]);
     rows.push(['', '', '', '', '', '']);
-    rows.push(['SECTION 3: ITEMIZED 2026 KENYA STATUTORY & PAYE BREAKDOWN', 'Amount (KES)', 'Statutory Rule / Basis', '', '', '']);
+    rows.push(['SECTION 3: ITEMIZED 2026 KENYA INDIVIDUAL SELF-ASSESSMENT (IT1) BREAKDOWN', 'Amount (KES)', 'Statutory Rule / Basis', '', '', '']);
     getProofRows(r, p).forEach(function (pr) {
       rows.push([pr[1], pr[2].toFixed(2), pr[3], '', '', '']);
     });
@@ -642,11 +714,15 @@
   function resetEnteredDays() {
     appState.months = [currentMonthRow()];
     appState.payments = [];
+    appState.otherPriorIncome = 0;
+    appState.expenses = 0;
     appState.priorPaid = 0;
     appState.manualAdj = 0;
     appState.correctionReason = '';
     appState.supersedesId = '';
     appState.previousGross = 0;
+    el('otherPriorIncome').value = 0;
+    el('etimsExpenses').value = 0;
     el('priorPaid').value = 0;
     el('manualAdj').value = 0;
     el('correctionReason').value = '';
@@ -655,7 +731,7 @@
     renderMonthCards();
     renderPaymentsTable();
     recalculate();
-    showFeedback('Cleared entered days, payments, and adjustments. Base daily rates and tax rules were kept.', false);
+    showFeedback('Cleared entered days, payments, expenses, and adjustments. Base daily rates and tax rules were kept.', false);
   }
 
   /* ── Persistent Google Sheet Ledger & History ──────────────────────────── */
@@ -740,7 +816,7 @@
       shif: ov.shif,
       ahl: ov.ahl,
       taxable: ov.taxable,
-      paye: ov.paye,
+      paye: ov.incomeTax,
       net: r.combinedNet,
       effectiveDaily: r.effectiveDaily,
       months: r.months,
@@ -877,6 +953,9 @@
     var rs = item.rawState || {};
     appState.calcMode = rs.calcMode || 'reverse';
     appState.billingMode = rs.billingMode || 'lump';
+    appState.stackLegacyInYear = (rs.stackLegacyInYear !== false);
+    appState.otherPriorIncome = Number(rs.otherPriorIncome || 0);
+    appState.expenses = Number(rs.expenses || 0);
     appState.daughterRate = Number(rs.daughterRate || 3500);
     appState.sonRate = Number(rs.sonRate || 2000);
     appState.months = Array.isArray(rs.months) && rs.months.length ? JSON.parse(JSON.stringify(rs.months)) : [currentMonthRow()];
@@ -890,6 +969,9 @@
     el('daughterRate').value = appState.daughterRate;
     el('sonRate').value = appState.sonRate;
     el('billingMode').value = appState.billingMode;
+    el('stackLegacyMode').value = appState.stackLegacyInYear ? 'stack' : 'standalone';
+    el('otherPriorIncome').value = appState.otherPriorIncome;
+    el('etimsExpenses').value = appState.expenses;
     el('priorPaid').value = appState.priorPaid.toFixed(2);
     el('manualAdj').value = appState.manualAdj;
     el('correctionReason').value = appState.correctionReason;
@@ -930,7 +1012,7 @@
     var ov = r.overall;
     var cr = r.childRates;
     var lines = [
-      'TEACHING SERVICES & KENYA TAX STATEMENT (2026)',
+      'TEACHING SERVICES & KENYA SELF-ASSESSMENT (IT1) STATEMENT (2026)',
       appState.supersedesId ? ('Revision of ' + appState.supersedesId + ': ' + appState.correctionReason) : '',
       'Working Days: ' + r.totalDays + ' days (Child 1: ' + r.daughterDays + 'd | Child 2: ' + r.sonDays + 'd)',
       'Effective Tax-Inclusive Daily Rates (eTIMS):',
@@ -941,10 +1023,10 @@
       r.hasLegacyMonths ? ('   - Legacy Pre-Tax Work (' + r.legacyDays + 'd): KES ' + fmt(r.legacyBaseTotal)) : '',
       r.hasLegacyMonths ? ('   - eTIMS Net Fee (' + r.taxedDays + 'd): KES ' + fmt(ov.net)) : '',
       '2. Statutory Tax & Levy Remittance (eTIMS): +KES ' + fmt(r.additionalPay),
-      '   - KRA PAYE Income Tax: KES ' + fmt(ov.paye),
+      '   - KRA Income Tax (IT1): KES ' + fmt(ov.incomeTax) + ' (after KES ' + fmt(ov.relief) + ' Personal Relief)',
       '   - SHA / SHIF (2.75%): KES ' + fmt(ov.shif),
-      '   - NSSF (6%): KES ' + fmt(ov.nssf),
       '   - Housing Levy (1.5%): KES ' + fmt(ov.ahl),
+      ov.nssf > 0 ? ('   - Voluntary NSSF: KES ' + fmt(ov.nssf)) : '',
       '3. eTIMS GROSS INVOICE AMOUNT: KES ' + fmt(ov.gross),
       r.hasLegacyMonths ? ('   Combined Account Value (Legacy + eTIMS): KES ' + fmt(r.combinedGross)) : ''
     ].filter(Boolean);
@@ -1090,8 +1172,9 @@
       fetchCloudHistory(false);
     });
 
-    ['daughterRate', 'sonRate', 'maxDaysMonth', 'billingMode', 'priorPaid', 'manualAdj', 'correctionReason',
-     'pNssfRate', 'pNssfCap', 'pShifRate', 'pShifMin', 'pAhlRate', 'pRelief'].forEach(function (id) {
+    ['daughterRate', 'sonRate', 'maxDaysMonth', 'billingMode', 'stackLegacyMode', 'otherPriorIncome', 'etimsExpenses',
+     'priorPaid', 'manualAdj', 'correctionReason', 'pNssfRate', 'pNssfCap', 'pShifRate', 'pShifMin', 'pAhlRate', 'pRelief'].forEach(function (id) {
+      if (!el(id)) return;
       el(id).addEventListener('input', recalculate);
       el(id).addEventListener('change', recalculate);
     });
