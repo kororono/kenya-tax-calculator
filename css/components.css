@@ -956,6 +956,11 @@ select.c-input option {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  .p-compliance-note--info {
+    border-color: #0E7A4E;
+    background: #F0FDF4 !important;
+    color: #064E3B;
+  }
   .p-narrative {
     border: 1px solid #CCCCCC;
     background: #FAFAFA !important;

@@ -89,7 +89,7 @@
         <div class="c-field">
           <label class="c-label" for="billingMode">Billing &amp; IT1 Assessment Basis</label>
           <select class="c-input" id="billingMode">
-            <option value="lump" selected>Consolidated Lump-Sum (Annual IT1 Bands)</option>
+            <option value="lump" selected>Consolidated Lump-Sum (Time-Apportioned IT1)</option>
             <option value="monthly">Assessed Separately Month-by-Month</option>
           </select>
         </div>
@@ -97,16 +97,16 @@
 
       <details id="saOptionsBox" style="margin-top:14px;">
         <summary style="cursor:pointer;font-weight:600;font-size:0.88rem;color:var(--text-secondary);">
-          Self-Assessment Options: Prior 2026 Income &amp; Allowable eTIMS Expenses (Optional — click to open)
+          Self-Assessment Options: Prior Income &amp; Allowable eTIMS Expenses (Optional — click to open)
         </summary>
         <div class="c-grid-3" style="margin-top:12px;">
           <div class="c-field">
-            <label class="c-label" for="stackLegacyMode">2026 Annual IT1 Income Context</label>
+            <label class="c-label" for="stackLegacyMode">Prior / Legacy Income Handling</label>
             <select class="c-input" id="stackLegacyMode">
-              <option value="stack" selected>Include Legacy 2026 Months in Annual Bands</option>
-              <option value="standalone">Standalone eTIMS Period Only (Start at KES 0)</option>
+              <option value="standalone" selected>Start at KES 0 (Time-Apportion Relief by eTIMS Months)</option>
+              <option value="stack">Stack Legacy Months into Tax Brackets</option>
             </select>
-            <span class="c-hint">KRA IT1 assesses all 2026 income together; stacking avoids under-providing tax.</span>
+            <span class="c-hint">Default ignores historical pre-tax months and applies KES 2,400/mo relief only to active eTIMS months.</span>
           </div>
           <div class="c-field">
             <label class="c-label" for="otherPriorIncome">Other 2026 Taxable Income (KES)</label>

@@ -3,9 +3,10 @@
                    (Zero DOM dependencies; one implementation of all tax math)
 
    Basis: KRA Individual Income Tax (Cap 470, Resident IT1 Self-Assessment),
-          Social Health Insurance Act (SHIF 2.75%), Affordable Housing Act 2024
-          (AHL 1.5% for non-salaried individuals), Tax Laws (Amendment) Act 2024
-          (SHIF & AHL deductible pre-tax), NSSF voluntary (0% default).
+          time-apportioned across active taxed months (N/12 of annual bands and
+          KES 28,800/yr Personal Relief, starting from KES 0 prior income by
+          default), Social Health Insurance Fund (SHIF 2.75% pre-tax),
+          Affordable Housing Levy (AHL 1.5% pre-tax), NSSF voluntary (0%).
    ═══════════════════════════════════════════════════════════════════════════ */
 (function (root) {
   'use strict';
@@ -26,47 +27,48 @@
       gross: 0, nssf: 0, shif: 0, ahl: 0, expenses: 0, preTaxDed: 0,
       taxable: 0, priorTaxable: 0, totalYearTaxable: 0,
       b1: 0, b2: 0, b3: 0, b4: 0, b5: 0,
-      grossTax: 0, relief: 0, incomeTax: 0, totalYearTax: 0,
-      totalDed: 0, net: 0
+      grossTax: 0, relief: 0, reliefCap: 0, monthsCount: 0,
+      incomeTax: 0, totalYearTax: 0, totalDed: 0, net: 0
     };
   }
 
-  function calcProgressiveBands(taxable, period) {
+  function calcApportionedBands(taxable, monthsCount) {
     var t = Math.max(0, Number(taxable || 0));
-    var caps = (period === 'monthly')
-      ? [24000, 32333, 500000, 800000]
-      : [288000, 388000, 6000000, 9600000];
+    var scale = Math.max(1, Number(monthsCount || 12)) / 12;
+    var c1 = 288000 * scale;
+    var c2 = 388000 * scale;
+    var c3 = 6000000 * scale;
+    var c4 = 9600000 * scale;
 
-    var b1 = Math.min(t, caps[0]) * 0.10;
-    var b2 = Math.max(0, Math.min(t, caps[1]) - caps[0]) * 0.25;
-    var b3 = Math.max(0, Math.min(t, caps[2]) - caps[1]) * 0.30;
-    var b4 = Math.max(0, Math.min(t, caps[3]) - caps[2]) * 0.325;
-    var b5 = Math.max(0, t - caps[3]) * 0.35;
+    var b1 = Math.min(t, c1) * 0.10;
+    var b2 = Math.max(0, Math.min(t, c2) - c1) * 0.25;
+    var b3 = Math.max(0, Math.min(t, c3) - c2) * 0.30;
+    var b4 = Math.max(0, Math.min(t, c4) - c3) * 0.325;
+    var b5 = Math.max(0, t - c4) * 0.35;
     return { b1: b1, b2: b2, b3: b3, b4: b4, b5: b5, grossTax: b1 + b2 + b3 + b4 + b5 };
   }
 
   function calcForward(gross, params, opts) {
     var p = params || DEFAULT_PARAMS;
     var o = opts || {};
-    var period = (o.period === 'monthly') ? 'monthly' : 'annual';
     var g = Math.max(0, Number(gross || 0));
     if (g <= 0) return emptyPeriod();
 
-    var monthScale = (period === 'monthly') ? 1 : 12;
-    var shifMonths = (period === 'monthly') ? 1 : Math.max(1, Number(o.shifMonths || 12));
-    var priorTaxable = (period === 'monthly') ? 0 : Math.max(0, Number(o.priorTaxable || 0));
+    var monthsCount = (o.period === 'monthly') ? 1 : Math.max(1, Number(o.monthsCount || 12));
+    var priorTaxable = (o.period === 'monthly') ? 0 : Math.max(0, Number(o.priorTaxable || 0));
     var expenses = Math.max(0, Number(o.expenses || 0));
 
-    var nssf = (p.nssfRate > 0) ? Math.min(g, p.nssfCap * monthScale) * p.nssfRate : 0;
-    var shif = (p.shifRate > 0) ? Math.max(p.shifMin * shifMonths, g * p.shifRate) : 0;
+    var nssf = (p.nssfRate > 0) ? Math.min(g, p.nssfCap * monthsCount) * p.nssfRate : 0;
+    var shif = (p.shifRate > 0) ? Math.max(p.shifMin * monthsCount, g * p.shifRate) : 0;
     var ahl = g * p.ahlRate;
     var preTaxDed = nssf + shif + ahl;
     var taxable = Math.max(0, g - preTaxDed - expenses);
 
-    var reliefCap = (period === 'monthly') ? Number(p.monthlyRelief || 2400) : Number(p.annualRelief || 28800);
+    var annualRel = Number(p.annualRelief !== undefined ? p.annualRelief : 28800);
+    var reliefCap = (annualRel / 12) * monthsCount;
     var totalYearTaxable = priorTaxable + taxable;
-    var totalBands = calcProgressiveBands(totalYearTaxable, period);
-    var priorBands = calcProgressiveBands(priorTaxable, period);
+    var totalBands = calcApportionedBands(totalYearTaxable, monthsCount);
+    var priorBands = calcApportionedBands(priorTaxable, monthsCount);
 
     var totalYearTax = Math.max(0, totalBands.grossTax - reliefCap);
     var priorNetTax = Math.max(0, priorBands.grossTax - reliefCap);
@@ -86,8 +88,8 @@
       gross: g, nssf: nssf, shif: shif, ahl: ahl, expenses: expenses, preTaxDed: preTaxDed,
       taxable: taxable, priorTaxable: priorTaxable, totalYearTaxable: totalYearTaxable,
       b1: b1, b2: b2, b3: b3, b4: b4, b5: b5,
-      grossTax: grossTax, relief: reliefUsed, incomeTax: incomeTax, totalYearTax: totalYearTax,
-      totalDed: totalDed, net: g - totalDed
+      grossTax: grossTax, relief: reliefUsed, reliefCap: reliefCap, monthsCount: monthsCount,
+      incomeTax: incomeTax, totalYearTax: totalYearTax, totalDed: totalDed, net: g - totalDed
     };
   }
 
@@ -172,15 +174,19 @@
 
     var solveFn = (state.calcMode === 'forward') ? calcForward : solveGrossFromNet;
     var taxedMonths = monthItems.filter(function (item) { return !item.legacy; });
+    var activeTaxedMonths = taxedMonths.filter(function (item) { return item.totalDays > 0; });
+    var reliefMonthsList = (activeTaxedMonths.length > 0) ? activeTaxedMonths : taxedMonths;
+    var reliefMonthsCount = reliefMonthsList.length;
     var expenses = Math.max(0, Number(state.expenses || 0));
-    var stackLegacy = (state.stackLegacyInYear !== false);
+    var stackLegacy = Boolean(state.stackLegacyInYear);
     var otherPrior = Math.max(0, Number(state.otherPriorIncome || 0));
     var priorYearTaxable = (stackLegacy ? legBase : 0) + otherPrior;
     var taxedOverall;
 
     if (state.billingMode === 'monthly') {
-      var perMonthExp = taxedMonths.length > 0 ? (expenses / taxedMonths.length) : 0;
+      var perMonthExp = reliefMonthsCount > 0 ? (expenses / reliefMonthsCount) : 0;
       var perMonth = taxedMonths.map(function (item) {
+        if (item.totalDays <= 0) return emptyPeriod();
         var r = solveFn(item.baseAmt, p, { period: 'monthly', expenses: perMonthExp });
         var mMult = (item.baseAmt > 0) ? (r.gross / item.baseAmt) : 0;
         item.gross = r.gross; item.totalDed = r.totalDed; item.net = r.net;
@@ -190,12 +196,11 @@
       });
       taxedOverall = sumPeriods(perMonth);
     } else {
-      var activeMonthsCount = Math.max(1, taxedMonths.filter(function (m) { return m.totalDays > 0; }).length || taxedMonths.length);
       taxedOverall = solveFn(taxBase, p, {
-        period: 'annual',
+        period: 'apportioned',
+        monthsCount: Math.max(1, reliefMonthsCount),
         priorTaxable: priorYearTaxable,
-        expenses: expenses,
-        shifMonths: activeMonthsCount
+        expenses: expenses
       });
       var lMult = (taxBase > 0) ? (taxedOverall.gross / taxBase) : 0;
       taxedMonths.forEach(function (item) {
@@ -214,6 +219,7 @@
     var totDays = totD + totS;
     var taxDays = taxD + taxS;
     var legDays = legD + legS;
+    var annualRelief = Number(p.annualRelief !== undefined ? p.annualRelief : 28800);
 
     var payments = Array.isArray(state.payments) ? state.payments : [];
     var recordedPaid = payments.reduce(function (sum, pay) {
@@ -231,6 +237,10 @@
       legacyDays: legDays,
       legacyBaseTotal: legBase,
       priorYearTaxable: priorYearTaxable,
+      reliefMonthsCount: (taxBase > 0) ? reliefMonthsCount : 0,
+      reliefMonthLabels: (taxBase > 0) ? reliefMonthsList.map(function (m) { return m.label; }) : [],
+      remainingReliefMonths: Math.max(0, 12 - ((taxBase > 0) ? reliefMonthsCount : 0)),
+      remainingAnnualRelief: Math.max(0, annualRelief - taxedOverall.relief),
       taxedDays: taxDays,
       taxedNetTotal: taxedOverall.net,
       taxedGrossTotal: taxedOverall.gross,
