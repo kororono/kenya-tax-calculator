@@ -79,10 +79,35 @@
     return acc;
   }
 
+  function computeChildRates(dRate, sRate, totD, totS, totBase, overall, maxDays, calcMode, params) {
+    var solveFn = (calcMode === 'forward') ? calcForward : solveGrossFromNet;
+    var mult = (totBase > 0) ? (overall.gross / totBase) : 0;
+    var dBase = totD * dRate;
+    var sBase = totS * sRate;
+    var dStand = solveFn(dRate * maxDays, params).gross / maxDays;
+    var sStand = solveFn(sRate * maxDays, params).gross / maxDays;
+
+    return {
+      c1Active: totD > 0,
+      c2Active: totS > 0,
+      c1BaseTotal: dBase,
+      c2BaseTotal: sBase,
+      c1GrossTotal: dBase * mult,
+      c2GrossTotal: sBase * mult,
+      c1TaxTotal: (dBase * mult) - (totD > 0 ? (overall.net * (dBase / totBase)) : 0),
+      c2TaxTotal: (sBase * mult) - (totS > 0 ? (overall.net * (sBase / totBase)) : 0),
+      c1EffDay: (totD > 0 && mult > 0) ? (dRate * mult) : dStand,
+      c2EffDay: (totS > 0 && mult > 0) ? (sRate * mult) : sStand,
+      c1StandDay: dStand,
+      c2StandDay: sStand
+    };
+  }
+
   function computeSchedule(state, params) {
     var p = params || DEFAULT_PARAMS;
     var dRate = Math.max(0, Number(state.daughterRate || 0));
     var sRate = Math.max(0, Number(state.sonRate || 0));
+    var maxDays = Math.max(1, Number(state.maxDaysMonth || 20));
     var rows = Array.isArray(state.months) ? state.months : [];
     var totD = 0, totS = 0, totBase = 0;
 
@@ -91,7 +116,11 @@
       var s = Math.max(0, Number(m.sDays || 0));
       var base = d * dRate + s * sRate;
       totD += d; totS += s; totBase += base;
-      return { month: m.month, year: m.year, label: m.month + ' ' + m.year, dDays: d, sDays: s, totalDays: d + s, baseAmt: base };
+      return {
+        month: m.month, year: m.year, label: m.month + ' ' + m.year,
+        dDays: d, sDays: s, totalDays: d + s,
+        c1Base: d * dRate, c2Base: s * sRate, baseAmt: base
+      };
     });
 
     var solveFn = (state.calcMode === 'forward') ? calcForward : solveGrossFromNet;
@@ -99,44 +128,60 @@
     if (state.billingMode === 'monthly') {
       var perMonth = monthItems.map(function (item) {
         var r = solveFn(item.baseAmt, p);
+        var mMult = (item.baseAmt > 0) ? (r.gross / item.baseAmt) : 0;
         item.gross = r.gross; item.totalDed = r.totalDed; item.net = r.net;
+        item.c1EffDay = (item.dDays > 0) ? (dRate * mMult) : 0;
+        item.c2EffDay = (item.sDays > 0) ? (sRate * mMult) : 0;
         return r;
       });
       overall = sumPeriods(perMonth);
     } else {
       overall = solveFn(totBase, p);
+      var lMult = (totBase > 0) ? (overall.gross / totBase) : 0;
       monthItems.forEach(function (item) {
         var share = (totBase > 0) ? (item.baseAmt / totBase) : 0;
         item.gross = overall.gross * share;
         item.totalDed = overall.totalDed * share;
         item.net = overall.net * share;
+        item.c1EffDay = (item.dDays > 0) ? (dRate * lMult) : 0;
+        item.c2EffDay = (item.sDays > 0) ? (sRate * lMult) : 0;
       });
     }
 
     var totDays = totD + totS;
-    var priorPaid = Math.max(0, Number(state.priorPaid || 0));
+    var payments = Array.isArray(state.payments) ? state.payments : [];
+    var recordedPaid = payments.reduce(function (sum, pay) {
+      return sum + Math.max(0, Number(pay.amount || 0));
+    }, 0);
+    var extraPrior = Math.max(0, Number(state.priorPaid || 0));
+    var totalPriorPaid = recordedPaid + extraPrior;
     var manualAdj = Number(state.manualAdj || 0);
+    var childRates = computeChildRates(dRate, sRate, totD, totS, totBase, overall, maxDays, state.calcMode, p);
+
     return {
       overall: overall,
       months: monthItems,
+      childRates: childRates,
       daughterDays: totD,
       sonDays: totS,
       totalDays: totDays,
       baseTotal: totBase,
       additionalPay: overall.gross - overall.net,
       effectiveDaily: (totDays > 0) ? (overall.gross / totDays) : 0,
-      priorPaid: priorPaid,
+      recordedPaid: recordedPaid,
+      extraPriorPaid: extraPrior,
+      priorPaid: totalPriorPaid,
       manualAdj: manualAdj,
-      balanceOwed: overall.gross - priorPaid + manualAdj
+      balanceOwed: overall.gross - totalPriorPaid + manualAdj
     };
   }
 
   function computeDailyPlanner(dRate, sRate, maxDays, params) {
     var days = Math.max(1, Number(maxDays || 20));
     var cases = [
-      { id: 'daughter', title: 'Teaching Daughter Only', netDay: dRate },
-      { id: 'son', title: 'Teaching Son Only', netDay: sRate },
-      { id: 'both', title: 'Teaching Both in the Same Month', netDay: dRate + sRate }
+      { id: 'child1', title: 'Child 1 Only', netDay: dRate },
+      { id: 'child2', title: 'Child 2 Only', netDay: sRate },
+      { id: 'both', title: 'Both Children (Child 1 + Child 2)', netDay: dRate + sRate }
     ];
     return cases.map(function (c) {
       var targetMo = c.netDay * days;

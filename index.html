@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Teaching Pay &amp; Kenya Tax Calculator (2026)</title>
+  <title>Teaching Services &amp; Kenya Tax Statement Calculator (2026)</title>
   <link rel="stylesheet" href="css/theme.css">
   <link rel="stylesheet" href="css/components.css">
 </head>
@@ -13,9 +13,9 @@
   <!-- Header -->
   <header class="c-header">
     <div>
-      <div class="ed-eyebrow">Kenya 2026 Statutory Tax Calculator</div>
-      <h1 class="c-title">Teaching Pay &amp; Tax Calculator</h1>
-      <p class="c-subtitle">Enter the months and days taught to calculate exact taxes, save to Google Sheets, and export a clean statement.</p>
+      <div class="ed-eyebrow">Kenya 2026 Statutory Tax &amp; eTIMS Calculator</div>
+      <h1 class="c-title">Teaching Services &amp; Tax Calculator</h1>
+      <p class="c-subtitle">Enter the months and days taught, record cumulative payments received, and export a professional statement.</p>
     </div>
     <div class="c-btn-row">
       <a href="#" target="_blank" rel="noopener" class="c-btn c-btn--ghost c-btn--sm" id="btnOpenSheetTop" style="display:none;text-decoration:none;">Open Google Sheet</a>
@@ -27,7 +27,7 @@
   <nav class="c-nav" aria-label="Main sections">
     <a href="#calculator" class="c-tab is-active" id="tab-calculator">
       <span class="c-tab-dot"></span>
-      <span>1. Calculate Invoice</span>
+      <span>1. Calculate Statement</span>
     </a>
     <a href="#rates" class="c-tab" id="tab-rates">
       <span class="c-tab-dot"></span>
@@ -45,15 +45,15 @@
 
   <!-- Active Correction Mode Banner -->
   <div id="correctionBanner" class="c-banner c-banner--warn">
-    <span id="correctionBannerText">Fixing a past calculation</span>
-    <button type="button" class="c-btn c-btn--ghost c-btn--sm" id="btnCancelCorrection">Cancel Fix (Start Fresh)</button>
+    <span id="correctionBannerText">Revising a past calculation</span>
+    <button type="button" class="c-btn c-btn--ghost c-btn--sm" id="btnCancelCorrection">Cancel Revision (Start Fresh)</button>
   </div>
 
   <!-- Feedback Banner -->
   <div id="feedbackBanner" class="c-banner" role="status"></div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
-       VIEW 1: #calculator — Calculate Invoice
+       VIEW 1: #calculator — Calculate Statement
        ═══════════════════════════════════════════════════════════════════════ -->
   <main id="view-calculator" class="c-view is-active">
 
@@ -62,35 +62,35 @@
       <div class="c-card-head">
         <div>
           <h2 class="c-card-title">Step 1: Daily Rates &amp; Calculation Type</h2>
-          <p class="c-card-desc">Choose whether to add tax on top of take-home pay or deduct tax from a gross rate.</p>
+          <p class="c-card-desc">Choose whether to add statutory taxes on top of net take-home pay or deduct taxes from a gross rate.</p>
         </div>
       </div>
 
       <div class="c-mode-switch" role="group" aria-label="Calculation direction">
         <button type="button" class="c-mode-btn is-selected" id="modeBtnReverse">
-          <strong>Find Invoice Amount (Keep Full Take-Home)</strong>
-          <span>Adds tax on top so your take-home pay is not reduced.</span>
+          <strong>Gross-Up Invoice (Maintain Net Take-Home)</strong>
+          <span>Computes the required eTIMS invoice amount so net take-home pay remains unchanged after taxes.</span>
         </button>
         <button type="button" class="c-mode-btn" id="modeBtnForward">
-          <strong>Check Take-Home (Deduct Tax from Rate)</strong>
-          <span>Shows what remains if taxes are subtracted from the rate.</span>
+          <strong>Standard Deduction (Deduct Tax from Rate)</strong>
+          <span>Shows net take-home pay remaining if statutory taxes are deducted directly from the daily rate.</span>
         </button>
       </div>
 
       <div class="c-grid-3">
         <div class="c-field">
-          <label class="c-label" for="daughterRate">Daughter Daily Rate (KES)</label>
+          <label class="c-label" for="daughterRate">Child 1 Base Daily Rate (KES)</label>
           <input type="number" class="c-input" id="daughterRate" value="3500" min="0" step="50">
         </div>
         <div class="c-field">
-          <label class="c-label" for="sonRate">Son Daily Rate (KES)</label>
-          <input type="number" class="c-input" id="sonRate" value="2500" min="0" step="50">
+          <label class="c-label" for="sonRate">Child 2 Base Daily Rate (KES)</label>
+          <input type="number" class="c-input" id="sonRate" value="2000" min="0" step="50">
         </div>
         <div class="c-field">
-          <label class="c-label" for="billingMode">How Is It Being Paid?</label>
+          <label class="c-label" for="billingMode">Billing &amp; Tax Assessment Basis</label>
           <select class="c-input" id="billingMode">
-            <option value="lump" selected>Paid Together on One Invoice</option>
-            <option value="monthly">Paid &amp; Taxed Separately Each Month</option>
+            <option value="lump" selected>Consolidated Lump-Sum Invoice</option>
+            <option value="monthly">Assessed Separately Month-by-Month</option>
           </select>
         </div>
       </div>
@@ -101,73 +101,140 @@
       <div class="c-card-head">
         <div>
           <h2 class="c-card-title">Step 2: Months &amp; Days Worked</h2>
-          <p class="c-card-desc">Use the + and &minus; buttons (or type) to enter days worked for each student.</p>
+          <p class="c-card-desc">Use the + and &minus; buttons (or type) to enter days taught for Child 1 and Child 2.</p>
         </div>
         <div class="c-btn-row">
           <button type="button" class="c-btn c-btn--ghost c-btn--sm" id="btnAddMonth">+ Add Another Month</button>
-          <button type="button" class="c-btn c-btn--danger c-btn--sm" id="btnResetDays">Reset Days</button>
+          <button type="button" class="c-btn c-btn--danger c-btn--sm" id="btnResetDays">Reset All</button>
         </div>
       </div>
 
       <div id="monthsContainer" class="c-month-list"></div>
+    </section>
 
-      <!-- Optional: Prior Payment or Mistake Adjustment -->
-      <details id="priorDetailsBox" style="margin-top:16px;">
-        <summary style="cursor:pointer;font-weight:600;font-size:0.9rem;color:var(--text-secondary);">
-          Did the client already pay part of this, or are you correcting an older invoice? (Click to open)
+    <!-- Step 3: Record Cumulative / Irregular Payments Received -->
+    <section class="c-card">
+      <div class="c-card-head">
+        <div>
+          <h2 class="c-card-title">Step 3: Record Payments Received (Cumulative / On-Account)</h2>
+          <p class="c-card-desc">
+            Record payments received on any date (not tied to a single month) with the M-PESA transaction code or bank notification reference.
+          </p>
+        </div>
+      </div>
+
+      <div class="c-pay-entry-bar">
+        <div class="c-field">
+          <label class="c-label" for="payDate">Date of Receipt</label>
+          <input type="date" class="c-input" id="payDate">
+        </div>
+        <div class="c-field">
+          <label class="c-label" for="payRef">M-PESA Code / Bank Reference</label>
+          <input type="text" class="c-input" id="payRef" placeholder="e.g. UD6KVBV9TZ or KCB Ref">
+        </div>
+        <div class="c-field">
+          <label class="c-label" for="payAmount">Amount Received (KES)</label>
+          <input type="number" class="c-input" id="payAmount" placeholder="0.00" min="0" step="100">
+        </div>
+        <div class="c-field">
+          <label class="c-label" for="payNote">Channel / Note (Optional)</label>
+          <input type="text" class="c-input" id="payNote" placeholder="e.g. Cumulative transfer">
+        </div>
+        <button type="button" class="c-btn c-btn--ghost" id="btnAddPayment">+ Record Payment</button>
+      </div>
+
+      <div class="c-table-wrap" id="paymentsTableWrap" style="display:none;margin-bottom:12px;">
+        <table class="c-table">
+          <thead>
+            <tr>
+              <th>Date Received</th>
+              <th>M-PESA / Bank Reference</th>
+              <th>Note</th>
+              <th class="num">Amount (KES)</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="paymentsTableBody"></tbody>
+        </table>
+      </div>
+
+      <details id="priorDetailsBox">
+        <summary style="cursor:pointer;font-weight:600;font-size:0.88rem;color:var(--text-secondary);">
+          Additional Balance Adjustment or Revision Note (Optional — click to open)
         </summary>
         <div class="c-grid-3" style="margin-top:12px;">
           <div class="c-field">
-            <label class="c-label" for="priorPaid">Amount Already Paid (KES)</label>
+            <label class="c-label" for="priorPaid">Other Unlisted Prior Payment (KES)</label>
             <input type="number" class="c-input" id="priorPaid" value="0" min="0" step="100">
-            <span class="c-hint">Subtracts what they already paid you.</span>
+            <span class="c-hint">Optional lump amount not itemized above.</span>
           </div>
           <div class="c-field">
-            <label class="c-label" for="manualAdj">Other Adjustment (+/&minus; KES)</label>
+            <label class="c-label" for="manualAdj">Balance Adjustment (+/&minus; KES)</label>
             <input type="number" class="c-input" id="manualAdj" value="0" step="100">
-            <span class="c-hint">Add missed balance (+) or credit (&minus;).</span>
+            <span class="c-hint">Add balance brought forward (+) or credit (&minus;).</span>
           </div>
           <div class="c-field">
-            <label class="c-label" for="correctionReason">Note / Reason</label>
-            <input type="text" class="c-input" id="correctionReason" placeholder="e.g. Client paid base pay earlier">
+            <label class="c-label" for="correctionReason">Statement Note / Reference</label>
+            <input type="text" class="c-input" id="correctionReason" placeholder="e.g. Consolidated July–Nov Reconciliation">
           </div>
         </div>
       </details>
     </section>
 
-    <!-- Step 3: Clear Results, Cloud Save & Presentable Exports -->
+    <!-- Step 4: Statement Results, Effective Child Rates, Narrative & Exports -->
     <section class="c-card">
       <div class="c-card-head">
         <div>
-          <h2 class="c-card-title">Step 3: Results &amp; Statement Export</h2>
-          <p class="c-card-desc">Save persistently to Google Sheets or export a clean PDF / Excel statement to share.</p>
+          <h2 class="c-card-title">Step 4: Statement Summary, Effective Daily Rates &amp; Export</h2>
+          <p class="c-card-desc">Professional client-ready summary with separate tax-inclusive daily rates for Child 1 and Child 2.</p>
         </div>
       </div>
 
+      <!-- Headline Totals -->
       <div class="c-stats">
         <div class="c-stat c-stat--takehome">
-          <div class="c-stat-label">1. Money for Mom (Take-Home)</div>
+          <div class="c-stat-label">1. Net Service Fee (Take-Home)</div>
           <div class="c-stat-value" id="statNet">KES 0.00</div>
           <div class="c-stat-note" id="statNetNote">0 total days</div>
         </div>
         <div class="c-stat c-stat--tax">
-          <div class="c-stat-label">2. Extra to Add for Taxes</div>
+          <div class="c-stat-label">2. Statutory Tax &amp; Levy Remittance</div>
           <div class="c-stat-value" id="statTax">+ KES 0.00</div>
           <div class="c-stat-note" id="statTaxNote">PAYE + NSSF + SHA + Housing Levy</div>
         </div>
         <div class="c-stat c-stat--invoice">
-          <div class="c-stat-label">3. Total to Put on Invoice</div>
+          <div class="c-stat-label">3. Total Gross eTIMS Invoice Amount</div>
           <div class="c-stat-value" id="statGross">KES 0.00</div>
           <div class="c-stat-note" id="statGrossNote">Total pre-tax invoice amount</div>
         </div>
         <div class="c-stat" id="statBalanceCard" style="display:none;">
-          <div class="c-stat-label">4. Balance Still Owed Now</div>
+          <div class="c-stat-label">4. Net Balance Due</div>
           <div class="c-stat-value" id="statBalance">KES 0.00</div>
-          <div class="c-stat-note" id="statBalanceNote">After subtracting prior payment</div>
+          <div class="c-stat-note" id="statBalanceNote">After deducting payments received</div>
         </div>
       </div>
 
-      <div class="c-btn-row" style="margin-bottom:18px;">
+      <!-- Separate Effective Tax-Inclusive Daily Rates for Child 1 & Child 2 -->
+      <div class="c-rate-strip">
+        <div class="c-rate-pill">
+          <div class="c-rate-pill-head">
+            <span>Child 1 Effective Tax-Inclusive Daily Rate</span>
+            <span id="c1DaysBadge">0 days</span>
+          </div>
+          <div class="c-rate-pill-main" id="c1EffRateVal">KES 4,964.85 / day</div>
+          <div class="c-rate-pill-sub" id="c1EffRateSub">Base Take-Home: KES 3,500.00/day (+KES 1,464.85/day tax allocation)</div>
+        </div>
+        <div class="c-rate-pill">
+          <div class="c-rate-pill-head">
+            <span>Child 2 Effective Tax-Inclusive Daily Rate</span>
+            <span id="c2DaysBadge">0 days</span>
+          </div>
+          <div class="c-rate-pill-main" id="c2EffRateVal">KES 2,592.36 / day</div>
+          <div class="c-rate-pill-sub" id="c2EffRateSub">Base Take-Home: KES 2,000.00/day (+KES 592.36/day tax allocation)</div>
+        </div>
+      </div>
+
+      <div class="c-btn-row" style="margin-bottom:16px;">
         <button type="button" class="c-btn c-btn--primary" id="btnSaveCalc">Save to Google Sheet Ledger</button>
         <button type="button" class="c-btn c-btn--ink" id="btnPrintPdf">Export PDF / Print Statement</button>
         <button type="button" class="c-btn c-btn--ghost" id="btnDownloadCsv">Export Excel (.CSV)</button>
@@ -176,21 +243,36 @@
 
       <details open>
         <summary style="cursor:pointer;font-weight:700;font-size:0.92rem;margin-bottom:10px;">
-          Full Tax &amp; Deduction Breakdown (Itemized Proof)
+          Itemized 2026 Kenya Statutory &amp; PAYE Tax Breakdown
         </summary>
         <div class="c-table-wrap">
           <table class="c-table">
             <thead>
               <tr>
-                <th>Tax / Payslip Line</th>
+                <th>Statement Line Item</th>
                 <th class="num">Amount (KES)</th>
-                <th>How It Is Calculated</th>
+                <th>2026 Statutory Basis</th>
               </tr>
             </thead>
             <tbody id="proofTableBody"></tbody>
           </table>
         </div>
       </details>
+
+      <!-- Optional Explanatory Narrative Section for Exports -->
+      <div class="c-narrative-box">
+        <div class="c-narrative-head">
+          <div>
+            <strong style="font-size:0.92rem;">Explanatory Note on eTIMS Tax Gross-Up &amp; Statutory Remittance</strong>
+            <div class="c-hint">Explains why and how the invoice figures are adjusted for KRA, NSSF, SHA, and Housing Levy.</div>
+          </div>
+          <label class="c-check-label">
+            <input type="checkbox" id="includeNarrative" checked>
+            <span>Include Explanation in Export (PDF, Excel &amp; WhatsApp)</span>
+          </label>
+        </div>
+        <div class="c-narrative-text" id="narrativePreview"></div>
+      </div>
     </section>
   </main>
 
@@ -203,7 +285,7 @@
         <div>
           <h2 class="c-card-title">Tax-Inclusive Daily Rate Guide (<span id="plannerDaysLabel">20</span>-Day Working Month)</h2>
           <p class="c-card-desc">
-            If you want to quote a single daily rate that already includes taxes so your take-home stays intact:
+            Standardized daily rates that include 2026 statutory taxes so net take-home pay remains unchanged:
           </p>
         </div>
         <div class="c-field" style="min-width:180px;">
@@ -217,7 +299,7 @@
   </section>
 
   <!-- ═══════════════════════════════════════════════════════════════════════
-       VIEW 3: #history — Persistent Google Sheet Ledger & Corrections
+       VIEW 3: #history — Persistent Google Sheet Ledger & Revisions
        ═══════════════════════════════════════════════════════════════════════ -->
   <section id="view-history" class="c-view">
     <div class="c-card">
@@ -225,7 +307,7 @@
         <div>
           <h2 class="c-card-title">Persistent Calculation Ledger (Google Sheets)</h2>
           <p class="c-card-desc">
-            Every saved calculation is stored in your Google Sheet. Click <strong>"Fix / Correct"</strong> on any entry to load it back, adjust the days or rates, and save a corrective replacement.
+            Every saved statement is stored in your Google Sheet. Click <strong>"Load &amp; Revise"</strong> on any entry to load its months, rates, and payments, make adjustments, and save a revised replacement.
           </p>
         </div>
         <div class="c-btn-row">
@@ -240,8 +322,8 @@
               <th>ID &amp; Date</th>
               <th>Status</th>
               <th class="num">Days</th>
-              <th class="num">Take-Home</th>
-              <th class="num">Total Invoice</th>
+              <th class="num">Net Fee</th>
+              <th class="num">Gross Invoice</th>
               <th>Notes</th>
               <th>Action</th>
             </tr>
@@ -260,7 +342,7 @@
       <div class="c-card-head">
         <div>
           <h2 class="c-card-title">2026 Kenya Statutory Tax Rates</h2>
-          <p class="c-card-desc">Pre-set to official 2026 KRA, NSSF Year 4, SHA/SHIF, and Housing Levy rules. Only change these if Kenya updates tax law.</p>
+          <p class="c-card-desc">Pre-set to official 2026 KRA PAYE bands, NSSF Year 4, SHA/SHIF, and Affordable Housing Levy rules.</p>
         </div>
       </div>
 

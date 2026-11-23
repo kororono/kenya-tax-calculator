@@ -8,10 +8,10 @@
   var DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzkhx1VIdOvVpoQ83s9KjxeArzkQ6Qa_jvXeriUHbJjVeCXBZooSQTJf6QMerNOt05GMQ/exec';
 
   var STORAGE_KEYS = {
-    HISTORY_CACHE: 'mom_tax_cloud_cache_v3',
-    RATES: 'mom_tax_base_rates_v3',
-    WEBHOOK: 'mom_tax_sheet_webhook_v3',
-    THEME: 'mom_tax_theme_v3'
+    HISTORY_CACHE: 'mom_tax_cloud_cache_v4',
+    RATES: 'mom_tax_base_rates_v4',
+    WEBHOOK: 'mom_tax_sheet_webhook_v4',
+    THEME: 'mom_tax_theme_v4'
   };
 
   var MONTH_NAMES = [
@@ -39,13 +39,15 @@
     calcMode: 'reverse',
     billingMode: 'lump',
     daughterRate: 3500,
-    sonRate: 2500,
+    sonRate: 2000,
     maxDaysMonth: 20,
     priorPaid: 0,
     manualAdj: 0,
     correctionReason: '',
     supersedesId: '',
     previousGross: 0,
+    includeNarrative: true,
+    payments: [],
     months: [currentMonthRow()]
   };
 
@@ -110,6 +112,7 @@
     el('sonRate').value = appState.sonRate;
     el('maxDaysMonth').value = appState.maxDaysMonth;
     el('webhookUrl').value = getActiveWebhookUrl();
+    el('payDate').value = new Date().toISOString().slice(0, 10);
   }
 
   function toggleTheme() {
@@ -155,19 +158,19 @@
           '</div>' +
           '<div class="c-month-grid">' +
             '<div class="c-field">' +
-              '<label class="c-label">Daughter Days Worked</label>' +
+              '<label class="c-label">Child 1 Days Worked</label>' +
               '<div class="c-stepper">' +
-                '<button type="button" class="c-step-btn" data-step="-1" data-idx="' + i + '" data-field="dDays" aria-label="Decrease Daughter days">&minus;</button>' +
+                '<button type="button" class="c-step-btn" data-step="-1" data-idx="' + i + '" data-field="dDays" aria-label="Decrease Child 1 days">&minus;</button>' +
                 '<input type="number" class="c-input" data-idx="' + i + '" data-field="dDays" value="' + Number(m.dDays || 0) + '" min="0" max="31" step="0.5">' +
-                '<button type="button" class="c-step-btn" data-step="1" data-idx="' + i + '" data-field="dDays" aria-label="Increase Daughter days">+</button>' +
+                '<button type="button" class="c-step-btn" data-step="1" data-idx="' + i + '" data-field="dDays" aria-label="Increase Child 1 days">+</button>' +
               '</div>' +
             '</div>' +
             '<div class="c-field">' +
-              '<label class="c-label">Son Days Worked</label>' +
+              '<label class="c-label">Child 2 Days Worked</label>' +
               '<div class="c-stepper">' +
-                '<button type="button" class="c-step-btn" data-step="-1" data-idx="' + i + '" data-field="sDays" aria-label="Decrease Son days">&minus;</button>' +
+                '<button type="button" class="c-step-btn" data-step="-1" data-idx="' + i + '" data-field="sDays" aria-label="Decrease Child 2 days">&minus;</button>' +
                 '<input type="number" class="c-input" data-idx="' + i + '" data-field="sDays" value="' + Number(m.sDays || 0) + '" min="0" max="31" step="0.5">' +
-                '<button type="button" class="c-step-btn" data-step="1" data-idx="' + i + '" data-field="sDays" aria-label="Increase Son days">+</button>' +
+                '<button type="button" class="c-step-btn" data-step="1" data-idx="' + i + '" data-field="sDays" aria-label="Increase Child 2 days">+</button>' +
               '</div>' +
             '</div>' +
             '<div class="c-month-summary" id="mSummary_' + i + '"></div>' +
@@ -175,6 +178,75 @@
         '</div>'
       );
     }).join('');
+  }
+
+  /* ── Recorded Payments Log (Cumulative / Non-Month-Bound) ──────────────── */
+  function renderPaymentsTable() {
+    var wrap = el('paymentsTableWrap');
+    var tbody = el('paymentsTableBody');
+    if (!appState.payments.length) {
+      wrap.style.display = 'none';
+      tbody.innerHTML = '';
+      return;
+    }
+    wrap.style.display = 'block';
+    var rowsHtml = appState.payments.map(function (pay, idx) {
+      return (
+        '<tr>' +
+          '<td>' + esc(pay.date || '—') + '</td>' +
+          '<td><strong>' + esc(pay.ref || '—') + '</strong></td>' +
+          '<td>' + esc(pay.note || 'Cumulative payment') + '</td>' +
+          '<td class="num">KES ' + fmt(pay.amount) + '</td>' +
+          '<td><button type="button" class="c-btn c-btn--danger c-btn--sm" data-del-pay="' + idx + '">Remove</button></td>' +
+        '</tr>'
+      );
+    }).join('');
+    var totalPaid = appState.payments.reduce(function (s, p) { return s + Number(p.amount || 0); }, 0);
+    rowsHtml +=
+      '<tr class="is-sub">' +
+        '<td colspan="3"><strong>Total Recorded Payments Received (' + appState.payments.length + ')</strong></td>' +
+        '<td class="num"><strong>KES ' + fmt(totalPaid) + '</strong></td>' +
+        '<td></td>' +
+      '</tr>';
+    tbody.innerHTML = rowsHtml;
+  }
+
+  function addRecordedPayment() {
+    var dateVal = el('payDate').value || new Date().toISOString().slice(0, 10);
+    var refVal = el('payRef').value.trim();
+    var amtVal = Number(el('payAmount').value || 0);
+    var noteVal = el('payNote').value.trim();
+    if (amtVal <= 0) {
+      showFeedback('Please enter a payment amount greater than 0.', true);
+      return;
+    }
+    appState.payments.push({
+      date: dateVal,
+      ref: refVal || 'Unreferenced Transfer',
+      amount: amtVal,
+      note: noteVal || 'On-account payment'
+    });
+    el('payRef').value = '';
+    el('payAmount').value = '';
+    el('payNote').value = '';
+    renderPaymentsTable();
+    recalculate();
+  }
+
+  /* ── Explanatory Narrative Builder ─────────────────────────────────────── */
+  function buildNarrativeParagraphs(res) {
+    var ov = res.overall;
+    var cr = res.childRates;
+    var p1 =
+      'Why the Invoice Amount Is Adjusted for Statutory Taxes: Issuing a formal eTIMS tax invoice for tax-deduction purposes creates a direct statutory self-assessment tax liability under Kenya law. ' +
+      'To preserve the agreed net take-home daily rates of KES ' + fmt(appState.daughterRate) + '/day for Child 1 and KES ' + fmt(appState.sonRate) + '/day for Child 2 (total net service fee of KES ' + fmt(ov.net) + ' across ' + res.totalDays + ' working days), ' +
+      'the gross eTIMS invoice amount must be KES ' + fmt(ov.gross) + '. This reflects an effective tax-inclusive daily rate of KES ' + fmt(cr.c1EffDay) + '/day for Child 1 and KES ' + fmt(cr.c2EffDay) + '/day for Child 2.';
+    var p2 =
+      'Direct Statutory Remittance (Zero Additional Markup): The additional KES ' + fmt(res.additionalPay) + ' added above the net service fee is not retained as extra earnings. ' +
+      'It is immediately directed to the mandatory statutory deductions required for compliance: KRA PAYE Income Tax (KES ' + fmt(ov.paye) + ', after deducting the KES ' + fmt(ov.relief) + ' Personal Relief), ' +
+      'SHA / SHIF Health Insurance at 2.75% (KES ' + fmt(ov.shif) + '), NSSF Tier I & II at 6% (KES ' + fmt(ov.nssf) + '), and the Affordable Housing Levy at 1.5% (KES ' + fmt(ov.ahl) + '). ' +
+      'This ensures full statutory compliance through official channels without any tax default or reduction in the agreed take-home pay.';
+    return [p1, p2];
   }
 
   /* ── Main Recalculate & Render ─────────────────────────────────────────── */
@@ -186,6 +258,7 @@
     appState.priorPaid = Math.max(0, Number(el('priorPaid').value || 0));
     appState.manualAdj = Number(el('manualAdj').value || 0);
     appState.correctionReason = el('correctionReason').value.trim();
+    appState.includeNarrative = Boolean(el('includeNarrative').checked);
 
     localStorage.setItem(STORAGE_KEYS.RATES, JSON.stringify({
       daughterRate: appState.daughterRate,
@@ -200,6 +273,7 @@
     updateMonthSummaries(res);
     updateHeadlineCards(res);
     renderProofTable(res, params);
+    renderNarrativePreview(res);
     renderPlannerView(params);
     renderPrintableStatement(res, params);
   }
@@ -208,57 +282,79 @@
     res.months.forEach(function (m, i) {
       var box = el('mSummary_' + i);
       if (!box) return;
+      var c1Line = m.dDays > 0 ? ('<div class="c-month-summary-line"><span>Child 1 Rate w/ Tax:</span><strong>KES ' + fmt(m.c1EffDay) + '/d</strong></div>') : '';
+      var c2Line = m.sDays > 0 ? ('<div class="c-month-summary-line"><span>Child 2 Rate w/ Tax:</span><strong>KES ' + fmt(m.c2EffDay) + '/d</strong></div>') : '';
       box.innerHTML =
-        '<div class="c-month-summary-line"><span>Total Days:</span><strong>' + m.totalDays + ' days</strong></div>' +
-        '<div class="c-month-summary-line"><span>Take-Home:</span><strong>KES ' + fmt(m.net) + '</strong></div>' +
-        '<div class="c-month-summary-line"><span>Invoice Share:</span><strong>KES ' + fmt(m.gross) + '</strong></div>';
+        '<div class="c-month-summary-line"><span>Net Service Fee:</span><strong>KES ' + fmt(m.net) + '</strong></div>' +
+        '<div class="c-month-summary-line"><span>Gross Invoice Share:</span><strong>KES ' + fmt(m.gross) + '</strong></div>' +
+        c1Line + c2Line;
     });
   }
 
   function updateHeadlineCards(res) {
     var ov = res.overall;
+    var cr = res.childRates;
     el('statNet').textContent = 'KES ' + fmt(ov.net);
-    el('statNetNote').textContent = res.totalDays + ' total days (' + res.daughterDays + 'd Daughter, ' + res.sonDays + 'd Son)';
+    el('statNetNote').textContent = res.totalDays + ' total days (' + res.daughterDays + 'd Child 1, ' + res.sonDays + 'd Child 2)';
     el('statTax').textContent = '+ KES ' + fmt(res.additionalPay);
-    el('statTaxNote').textContent = (ov.gross > 0) ? (fmt((res.additionalPay / ov.gross) * 100) + '% of invoice goes to tax & deductions') : 'PAYE + NSSF + SHA + Housing Levy';
+    el('statTaxNote').textContent = (ov.gross > 0) ? (fmt((res.additionalPay / ov.gross) * 100) + '% of gross invoice remitted to KRA/NSSF/SHA/AHL') : 'PAYE + NSSF + SHA + Housing Levy';
     el('statGross').textContent = 'KES ' + fmt(ov.gross);
-    el('statGrossNote').textContent = (res.totalDays > 0) ? ('Effective tax-inclusive rate: KES ' + fmt(res.effectiveDaily) + ' / day') : 'Total amount to bill on KRA invoice';
+    el('statGrossNote').textContent = (res.totalDays > 0) ? ('Combined gross average: KES ' + fmt(res.effectiveDaily) + ' / day') : 'Total pre-tax invoice amount';
+
+    el('c1DaysBadge').textContent = res.daughterDays + ' days (' + (cr.c1Active ? 'Active Schedule' : (appState.maxDaysMonth + 'd Benchmark')) + ')';
+    el('c1EffRateVal').textContent = 'KES ' + fmt(cr.c1EffDay) + ' / day';
+    el('c1EffRateSub').textContent =
+      'Base Net: KES ' + fmt(appState.daughterRate) + '/day (Tax add-on: +KES ' + fmt(cr.c1EffDay - appState.daughterRate) + '/day)' +
+      (cr.c1Active ? (' | Total Gross: KES ' + fmt(cr.c1GrossTotal)) : '');
+
+    el('c2DaysBadge').textContent = res.sonDays + ' days (' + (cr.c2Active ? 'Active Schedule' : (appState.maxDaysMonth + 'd Benchmark')) + ')';
+    el('c2EffRateVal').textContent = 'KES ' + fmt(cr.c2EffDay) + ' / day';
+    el('c2EffRateSub').textContent =
+      'Base Net: KES ' + fmt(appState.sonRate) + '/day (Tax add-on: +KES ' + fmt(cr.c2EffDay - appState.sonRate) + '/day)' +
+      (cr.c2Active ? (' | Total Gross: KES ' + fmt(cr.c2GrossTotal)) : '');
 
     var hasPrior = (res.priorPaid > 0 || res.manualAdj !== 0);
     el('statBalanceCard').style.display = hasPrior ? 'block' : 'none';
     el('statBalance').textContent = 'KES ' + fmt(res.balanceOwed);
-    el('statBalanceNote').textContent = 'Gross ' + fmt(ov.gross) + ' minus Paid ' + fmt(res.priorPaid) + (res.manualAdj !== 0 ? (' (Adj: ' + fmt(res.manualAdj) + ')') : '');
+    el('statBalanceNote').textContent = 'Gross ' + fmt(ov.gross) + ' minus Payments Received ' + fmt(res.priorPaid) + (res.manualAdj !== 0 ? (' (Adj: ' + fmt(res.manualAdj) + ')') : '');
 
     if (appState.supersedesId) {
       var delta = ov.gross - appState.previousGross;
       var sign = delta >= 0 ? '+' : '';
       el('correctionBannerText').textContent =
-        'Fixing Past Entry ' + appState.supersedesId + ' | Old Invoice: KES ' + fmt(appState.previousGross) +
-        ' \u2192 Corrected Invoice: KES ' + fmt(ov.gross) + ' (Difference: ' + sign + 'KES ' + fmt(delta) + ')';
+        'Revising Past Entry ' + appState.supersedesId + ' | Previous Gross: KES ' + fmt(appState.previousGross) +
+        ' \u2192 Revised Gross: KES ' + fmt(ov.gross) + ' (Variance: ' + sign + 'KES ' + fmt(delta) + ')';
     }
+  }
+
+  function renderNarrativePreview(res) {
+    var paras = buildNarrativeParagraphs(res);
+    var box = el('narrativePreview');
+    box.style.opacity = appState.includeNarrative ? '1' : '0.5';
+    box.innerHTML = paras.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('');
   }
 
   function getProofRows(res, p) {
     var ov = res.overall;
     var rows = [
-      ['is-sub', 'Total Gross Invoice Amount', ov.gross, 'Pre-tax total on KRA invoice'],
+      ['is-sub', 'Total Gross eTIMS Invoice Amount', ov.gross, 'Pre-tax total on eTIMS invoice'],
       ['', 'Less: NSSF Contribution (Tier I + II)', -ov.nssf, fmt(p.nssfRate * 100) + '% up to KES ' + fmt(p.nssfCap) + '/mo (max KES ' + fmt(p.nssfMax) + '/mo)'],
       ['', 'Less: SHA / SHIF Health Insurance', -ov.shif, fmt(p.shifRate * 100) + '% of Gross (min KES ' + fmt(p.shifMin) + ')'],
       ['', 'Less: Affordable Housing Levy (AHL)', -ov.ahl, fmt(p.ahlRate * 100) + '% of Gross'],
       ['is-sub', 'Taxable Income (After Pre-Tax Deductions)', ov.taxable, 'Gross minus NSSF, SHA/SHIF, and Housing Levy'],
-      ['', 'PAYE Band 1 (First KES 24,000 @ 10%)', ov.b1, '10% tax bracket'],
-      ['', 'PAYE Band 2 (Next KES 8,333 @ 25%)', ov.b2, '25% tax bracket'],
-      ['', 'PAYE Band 3 (32,334 – 500,000 @ 30%)', ov.b3, '30% tax bracket'],
+      ['', 'PAYE Band 1 (First KES 24,000 @ 10%)', ov.b1, '10% statutory tax bracket'],
+      ['', 'PAYE Band 2 (Next KES 8,333 @ 25%)', ov.b2, '25% statutory tax bracket'],
+      ['', 'PAYE Band 3 (32,334 – 500,000 @ 30%)', ov.b3, '30% statutory tax bracket'],
       ['is-sub', 'Gross Income Tax', ov.grossTax, 'Total tax before Personal Relief'],
       ['', 'Less: Monthly Personal Relief', -ov.relief, 'KES ' + fmt(p.relief) + ' per tax period'],
       ['is-tax', 'Net PAYE Tax Payable to KRA', ov.paye, 'Gross Tax minus Personal Relief'],
-      ['is-tax', 'Total Extra Needed for All Taxes & Deductions', ov.totalDed, 'NSSF + SHA/SHIF + Housing Levy + Net PAYE'],
-      ['is-total', 'Money for Mom (Final Take-Home Pay)', ov.net, 'Exact net amount kept after all deductions']
+      ['is-tax', 'Total Statutory Tax & Levy Remittance', ov.totalDed, 'NSSF + SHA/SHIF + Housing Levy + Net PAYE'],
+      ['is-total', 'Net Service Fee (Final Take-Home Pay)', ov.net, 'Agreed net fee retained after statutory remittances']
     ];
     if (res.priorPaid > 0 || res.manualAdj !== 0) {
-      rows.push(['', 'Less: Already Paid / Previously Billed', -res.priorPaid, 'Prior payment deducted']);
-      if (res.manualAdj !== 0) rows.push(['', 'Plus/Minus: Manual Error Adjustment', res.manualAdj, esc(appState.correctionReason || 'Adjustment')]);
-      rows.push(['is-tax', 'Remaining Corrective Balance Still Owed', res.balanceOwed, 'Net balance to collect now']);
+      rows.push(['', 'Less: Cumulative Payments Received', -res.priorPaid, (appState.payments.length ? (appState.payments.length + ' recorded payment(s)') : 'Prior payments deducted')]);
+      if (res.manualAdj !== 0) rows.push(['', 'Balance Adjustment', res.manualAdj, esc(appState.correctionReason || 'Adjustment')]);
+      rows.push(['is-tax', 'Net Balance Due', res.balanceOwed, 'Remaining balance to settle']);
     }
     return rows;
   }
@@ -279,19 +375,19 @@
           '<div class="ed-eyebrow">' + esc(item.title) + ' (' + item.days + ' Days/Month)</div>' +
           '<div class="c-stats" style="margin-bottom:0;margin-top:8px;">' +
             '<div class="c-stat">' +
-              '<div class="c-stat-label">Current Net Daily Rate</div>' +
+              '<div class="c-stat-label">Base Net Daily Rate</div>' +
               '<div class="c-stat-value">KES ' + fmt(item.netDay) + '</div>' +
-              '<div class="c-stat-note">Monthly Take-Home: KES ' + fmt(item.targetMonthNet) + '</div>' +
+              '<div class="c-stat-note">Monthly Net Service Fee: KES ' + fmt(item.targetMonthNet) + '</div>' +
             '</div>' +
             '<div class="c-stat c-stat--invoice">' +
-              '<div class="c-stat-label">New Tax-Inclusive Daily Rate</div>' +
+              '<div class="c-stat-label">Effective Tax-Inclusive Daily Rate</div>' +
               '<div class="c-stat-value">KES ' + fmt(item.revisedGrossDay) + ' / day</div>' +
-              '<div class="c-stat-note">Adds +KES ' + fmt(item.dailyTopUp) + '/day for taxes</div>' +
+              '<div class="c-stat-note">Includes +KES ' + fmt(item.dailyTopUp) + '/day for taxes</div>' +
             '</div>' +
             '<div class="c-stat c-stat--tax">' +
-              '<div class="c-stat-label">Monthly Gross Invoice</div>' +
+              '<div class="c-stat-label">Monthly Gross eTIMS Invoice</div>' +
               '<div class="c-stat-value">KES ' + fmt(item.requiredMonthGross) + '</div>' +
-              '<div class="c-stat-note">Includes +KES ' + fmt(item.monthlyTopUp) + ' total tax &amp; deductions</div>' +
+              '<div class="c-stat-note">Includes +KES ' + fmt(item.monthlyTopUp) + ' statutory remittances</div>' +
             '</div>' +
           '</div>' +
         '</div>'
@@ -302,14 +398,15 @@
   /* ── Presentable PDF / Print Statement Builder ─────────────────────────── */
   function renderPrintableStatement(res, p) {
     var ov = res.overall;
+    var cr = res.childRates;
     var dateStr = new Date().toLocaleDateString('en-KE', { year: 'numeric', month: 'long', day: 'numeric' });
-    var basisStr = (appState.billingMode === 'lump') ? 'Single Consolidated Lump-Sum Invoice' : 'Month-by-Month Taxed Schedule';
+    var basisStr = (appState.billingMode === 'lump') ? 'Consolidated Lump-Sum Assessment' : 'Month-by-Month Tax Schedule';
     var monthRowsHtml = res.months.map(function (m) {
       return (
         '<tr>' +
           '<td>' + esc(m.label) + '</td>' +
-          '<td class="num">' + m.dDays + ' days @ KES ' + fmt(appState.daughterRate) + '</td>' +
-          '<td class="num">' + m.sDays + ' days @ KES ' + fmt(appState.sonRate) + '</td>' +
+          '<td class="num">' + m.dDays + 'd (Net ' + fmt(appState.daughterRate) + ' | Gross ' + fmt(m.c1EffDay || cr.c1EffDay) + '/d)</td>' +
+          '<td class="num">' + m.sDays + 'd (Net ' + fmt(appState.sonRate) + ' | Gross ' + fmt(m.c2EffDay || cr.c2EffDay) + '/d)</td>' +
           '<td class="num">' + m.totalDays + ' days</td>' +
           '<td class="num">KES ' + fmt(m.net) + '</td>' +
           '<td class="num">KES ' + fmt(m.gross) + '</td>' +
@@ -322,35 +419,75 @@
       return '<tr class="' + boldCls + '"><td>' + r[1] + '</td><td>' + r[3] + '</td><td class="num">KES ' + fmt(r[2]) + '</td></tr>';
     }).join('');
 
+    var paymentsHtml = '';
+    if (appState.payments.length > 0) {
+      var payRows = appState.payments.map(function (pay) {
+        return '<tr><td>' + esc(pay.date) + '</td><td><strong>' + esc(pay.ref) + '</strong></td><td>' + esc(pay.note || 'On-account payment') + '</td><td class="num">KES ' + fmt(pay.amount) + '</td></tr>';
+      }).join('');
+      paymentsHtml =
+        '<div class="p-section-title">3. Recorded Payments Received (Cumulative / On-Account)</div>' +
+        '<table class="p-table">' +
+          '<thead><tr><th>Date of Receipt</th><th>M-PESA / Bank Reference</th><th>Description</th><th class="num">Amount Received (KES)</th></tr></thead>' +
+          '<tbody>' + payRows +
+            '<tr class="is-bold"><td colspan="3">Total Recorded Payments Received</td><td class="num">KES ' + fmt(res.recordedPaid) + '</td></tr>' +
+          '</tbody>' +
+        '</table>';
+    }
+
+    var narrativeHtml = '';
+    if (appState.includeNarrative) {
+      var paras = buildNarrativeParagraphs(res);
+      narrativeHtml =
+        '<div class="p-section-title">' + (appState.payments.length > 0 ? '4' : '3') + '. Explanatory Note on eTIMS Tax Gross-Up &amp; Statutory Remittance</div>' +
+        '<div class="p-narrative">' +
+          paras.map(function (para) { return '<p>' + esc(para) + '</p>'; }).join('') +
+        '</div>';
+    }
+
     el('printStatementSheet').innerHTML =
       '<div class="p-head">' +
         '<div>' +
-          '<div class="p-eyebrow">Kenya 2026 Statutory Tax &amp; Gross-Up Statement</div>' +
-          '<h1 class="p-title">Teaching Services Tax &amp; Invoice Breakdown</h1>' +
+          '<div class="p-eyebrow">Kenya 2026 Statutory Tax &amp; eTIMS Gross-Up Statement</div>' +
+          '<h1 class="p-title">Teaching Services &amp; Statutory Tax Statement</h1>' +
         '</div>' +
         '<div class="p-meta">' +
           '<div><strong>Date:</strong> ' + esc(dateStr) + '</div>' +
-          '<div><strong>Basis:</strong> ' + esc(basisStr) + '</div>' +
-          (appState.supersedesId ? '<div><strong>Supersedes:</strong> ' + esc(appState.supersedesId) + '</div>' : '') +
+          '<div><strong>Assessment Basis:</strong> ' + esc(basisStr) + '</div>' +
+          (appState.supersedesId ? '<div><strong>Revision of:</strong> ' + esc(appState.supersedesId) + '</div>' : '') +
         '</div>' +
       '</div>' +
       '<div class="p-summary-grid">' +
         '<div class="p-box">' +
-          '<div class="p-box-label">1. Net Take-Home Pay</div>' +
+          '<div class="p-box-label">1. Net Service Fee (Take-Home)</div>' +
           '<div class="p-box-val">KES ' + fmt(ov.net) + '</div>' +
+          '<div class="p-box-sub">' + res.totalDays + ' total days (' + res.daughterDays + 'd Child 1, ' + res.sonDays + 'd Child 2)</div>' +
         '</div>' +
         '<div class="p-box">' +
-          '<div class="p-box-label">2. Total Tax &amp; Deductions</div>' +
+          '<div class="p-box-label">2. Statutory Tax &amp; Levy Remittance</div>' +
           '<div class="p-box-val">+ KES ' + fmt(res.additionalPay) + '</div>' +
+          '<div class="p-box-sub">KRA PAYE + NSSF + SHA/SHIF + Housing Levy</div>' +
         '</div>' +
         '<div class="p-box p-box--strong">' +
-          '<div class="p-box-label">3. Total Gross Invoice Due</div>' +
+          '<div class="p-box-label">' + ((res.priorPaid > 0 || res.manualAdj !== 0) ? '3. Net Balance Due' : '3. Total Gross eTIMS Invoice') + '</div>' +
           '<div class="p-box-val">KES ' + fmt((res.priorPaid > 0 || res.manualAdj !== 0) ? res.balanceOwed : ov.gross) + '</div>' +
+          '<div class="p-box-sub">Gross Invoice: KES ' + fmt(ov.gross) + (res.priorPaid > 0 ? (' | Paid: KES ' + fmt(res.priorPaid)) : '') + '</div>' +
         '</div>' +
       '</div>' +
-      '<div class="p-section-title">1. Monthly Teaching Schedule (' + res.totalDays + ' Total Days)</div>' +
+      '<div class="p-rate-grid">' +
+        '<div class="p-box">' +
+          '<div class="p-box-label">Child 1 Effective Tax-Inclusive Daily Rate</div>' +
+          '<div class="p-box-val">KES ' + fmt(cr.c1EffDay) + ' / day</div>' +
+          '<div class="p-box-sub">Base Take-Home: KES ' + fmt(appState.daughterRate) + '/day (+KES ' + fmt(cr.c1EffDay - appState.daughterRate) + '/day tax allocation)</div>' +
+        '</div>' +
+        '<div class="p-box">' +
+          '<div class="p-box-label">Child 2 Effective Tax-Inclusive Daily Rate</div>' +
+          '<div class="p-box-val">KES ' + fmt(cr.c2EffDay) + ' / day</div>' +
+          '<div class="p-box-sub">Base Take-Home: KES ' + fmt(appState.sonRate) + '/day (+KES ' + fmt(cr.c2EffDay - appState.sonRate) + '/day tax allocation)</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="p-section-title">1. Monthly Schedule (' + res.totalDays + ' Total Working Days)</div>' +
       '<table class="p-table">' +
-        '<thead><tr><th>Month</th><th class="num">Daughter</th><th class="num">Son</th><th class="num">Total Days</th><th class="num">Take-Home (KES)</th><th class="num">Gross Invoice (KES)</th></tr></thead>' +
+        '<thead><tr><th>Month</th><th class="num">Child 1</th><th class="num">Child 2</th><th class="num">Total Days</th><th class="num">Net Service Fee (KES)</th><th class="num">Gross Invoice (KES)</th></tr></thead>' +
         '<tbody>' + monthRowsHtml + '</tbody>' +
       '</table>' +
       '<div class="p-section-title">2. Itemized 2026 Kenya Statutory &amp; PAYE Tax Calculation</div>' +
@@ -358,9 +495,11 @@
         '<thead><tr><th>Line Item</th><th>Statutory Basis (2026 Kenya Law)</th><th class="num">Amount (KES)</th></tr></thead>' +
         '<tbody>' + proofRowsHtml + '</tbody>' +
       '</table>' +
+      paymentsHtml +
+      narrativeHtml +
       '<div class="p-footer">' +
         '<span>Computed under 2026 KRA PAYE Bands, NSSF Year 4 (6% up to KES 108,000), SHA/SHIF (2.75%), and Affordable Housing Levy (1.5%).</span>' +
-        '<span>Effective Gross Daily Rate: KES ' + fmt(res.effectiveDaily) + ' / day</span>' +
+        '<span>Child 1 Gross: KES ' + fmt(cr.c1EffDay) + '/d | Child 2 Gross: KES ' + fmt(cr.c2EffDay) + '/d</span>' +
       '</div>';
   }
 
@@ -370,22 +509,24 @@
     var r = lastComputed.result;
     var p = lastComputed.params;
     var ov = r.overall;
+    var cr = r.childRates;
     var rows = [
-      ['TEACHING SERVICES — KENYA 2026 TAX & INVOICE STATEMENT', '', '', '', '', ''],
-      ['Generated Date', new Date().toLocaleString('en-KE'), 'Billing Basis', (appState.billingMode === 'lump' ? 'Single Lump-Sum Invoice' : 'Month-by-Month'), '', ''],
-      ['Daughter Net Rate (KES/day)', appState.daughterRate.toFixed(2), 'Son Net Rate (KES/day)', appState.sonRate.toFixed(2), 'Total Working Days', r.totalDays],
+      ['TEACHING SERVICES — KENYA 2026 STATUTORY TAX & eTIMS STATEMENT', '', '', '', '', ''],
+      ['Generated Date', new Date().toLocaleString('en-KE'), 'Assessment Basis', (appState.billingMode === 'lump' ? 'Consolidated Lump-Sum Invoice' : 'Month-by-Month'), '', ''],
+      ['Child 1 Base Net Rate (KES/day)', appState.daughterRate.toFixed(2), 'Child 1 Effective Tax-Inclusive Rate (KES/day)', cr.c1EffDay.toFixed(2), 'Child 1 Days', r.daughterDays],
+      ['Child 2 Base Net Rate (KES/day)', appState.sonRate.toFixed(2), 'Child 2 Effective Tax-Inclusive Rate (KES/day)', cr.c2EffDay.toFixed(2), 'Child 2 Days', r.sonDays],
       ['', '', '', '', '', ''],
       ['SECTION 1: HEADLINE SUMMARY', 'Amount (KES)', 'Notes', '', '', ''],
-      ['1. Money for Mom (Final Take-Home Pay)', ov.net.toFixed(2), 'Exact net pay kept after all taxes & deductions', '', '', ''],
-      ['2. Extra Needed for Taxes & Deductions', r.additionalPay.toFixed(2), 'PAYE + NSSF + SHA/SHIF + Housing Levy', '', '', ''],
-      ['3. Total Gross Invoice Amount', ov.gross.toFixed(2), 'Effective Gross Daily Rate: KES ' + r.effectiveDaily.toFixed(2) + '/day', '', '', '']
+      ['1. Net Service Fee (Take-Home Pay)', ov.net.toFixed(2), 'Agreed net fee retained after statutory remittances', '', '', ''],
+      ['2. Statutory Tax & Levy Remittance', r.additionalPay.toFixed(2), 'PAYE + NSSF + SHA/SHIF + Housing Levy', '', '', ''],
+      ['3. Total Gross eTIMS Invoice Amount', ov.gross.toFixed(2), 'Child 1 Gross/day: KES ' + cr.c1EffDay.toFixed(2) + ' | Child 2 Gross/day: KES ' + cr.c2EffDay.toFixed(2), '', '', '']
     ];
     if (r.priorPaid > 0 || r.manualAdj !== 0) {
-      rows.push(['4. Less Amount Already Paid', (-r.priorPaid).toFixed(2), appState.correctionReason || 'Prior payment', '', '', '']);
-      rows.push(['5. Net Balance Still Owed Now', r.balanceOwed.toFixed(2), 'Remaining balance to invoice/collect', '', '', '']);
+      rows.push(['4. Less Cumulative Payments Received', (-r.priorPaid).toFixed(2), appState.correctionReason || 'Recorded payments received', '', '', '']);
+      rows.push(['5. Net Balance Due', r.balanceOwed.toFixed(2), 'Remaining balance to settle', '', '', '']);
     }
     rows.push(['', '', '', '', '', '']);
-    rows.push(['SECTION 2: MONTHLY TEACHING SCHEDULE', 'Daughter Days', 'Son Days', 'Total Days', 'Net Take-Home (KES)', 'Gross Invoice Share (KES)']);
+    rows.push(['SECTION 2: MONTHLY SCHEDULE', 'Child 1 Days', 'Child 2 Days', 'Total Days', 'Net Service Fee (KES)', 'Gross Invoice Share (KES)']);
     r.months.forEach(function (m) {
       rows.push([m.label, m.dDays, m.sDays, m.totalDays, m.net.toFixed(2), m.gross.toFixed(2)]);
     });
@@ -395,6 +536,23 @@
     getProofRows(r, p).forEach(function (pr) {
       rows.push([pr[1], pr[2].toFixed(2), pr[3], '', '', '']);
     });
+
+    if (appState.payments.length > 0) {
+      rows.push(['', '', '', '', '', '']);
+      rows.push(['SECTION 4: RECORDED PAYMENTS RECEIVED (CUMULATIVE)', 'Date Received', 'M-PESA / Bank Reference', 'Amount (KES)', 'Note', '']);
+      appState.payments.forEach(function (pay) {
+        rows.push(['Payment Receipt', pay.date, pay.ref, Number(pay.amount || 0).toFixed(2), pay.note || '', '']);
+      });
+    }
+
+    if (appState.includeNarrative) {
+      var paras = buildNarrativeParagraphs(r);
+      rows.push(['', '', '', '', '', '']);
+      rows.push(['EXPLANATORY NOTE ON eTIMS TAX GROSS-UP & STATUTORY REMITTANCE', '', '', '', '', '']);
+      paras.forEach(function (para) {
+        rows.push([para, '', '', '', '', '']);
+      });
+    }
 
     var csvContent = '\uFEFF' + rows.map(function (row) {
       return row.map(function (cell) { return '"' + String(cell).replace(/"/g, '""') + '"'; }).join(',');
@@ -409,12 +567,13 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showFeedback('Exported clean Excel-ready statement (.CSV).', false);
+    showFeedback('Exported professional Excel-ready statement (.CSV).', false);
   }
 
-  /* ── Reset Days (Keeps Base Daily Rates & Tax Parameters) ──────────────── */
+  /* ── Reset Days & Payments (Keeps Base Daily Rates & Tax Parameters) ───── */
   function resetEnteredDays() {
     appState.months = [currentMonthRow()];
+    appState.payments = [];
     appState.priorPaid = 0;
     appState.manualAdj = 0;
     appState.correctionReason = '';
@@ -426,8 +585,9 @@
     el('correctionBanner').classList.remove('is-visible');
     el('btnSaveCalc').textContent = 'Save to Google Sheet Ledger';
     renderMonthCards();
+    renderPaymentsTable();
     recalculate();
-    showFeedback('Cleared entered days and adjustments. Your daily rates and tax rules were kept.', false);
+    showFeedback('Cleared entered days, payments, and adjustments. Base daily rates and tax rules were kept.', false);
   }
 
   /* ── Persistent Google Sheet Ledger & History ──────────────────────────── */
@@ -444,7 +604,7 @@
   function renderHistoryView() {
     var tbody = el('historyTableBody');
     if (!historyCache.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted);">No saved calculations yet. Click "Save to Google Sheet Ledger" on the calculator tab to store your first record.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted);">No saved statements yet. Click "Save to Google Sheet Ledger" on Tab 1 to store your first record.</td></tr>';
       return;
     }
     tbody.innerHTML = historyCache.map(function (item, i) {
@@ -452,7 +612,7 @@
       var inactive = (st.indexOf('SUPERSEDED') === 0 || st.indexOf('VOIDED') === 0);
       var badge = inactive ? 'c-badge--old' : 'c-badge--active';
       var notes = [];
-      if (item.supersedesId) notes.push('Fixed ' + item.supersedesId);
+      if (item.supersedesId) notes.push('Revised ' + item.supersedesId);
       if (item.correctionReason) notes.push(item.correctionReason);
       return (
         '<tr class="' + (inactive ? 'is-superseded' : '') + '">' +
@@ -461,10 +621,10 @@
           '<td class="num">' + Number(item.totalDays || 0) + ' days</td>' +
           '<td class="num">KES ' + fmt(item.targetNet) + '</td>' +
           '<td class="num"><strong>KES ' + fmt(item.gross) + '</strong></td>' +
-          '<td>' + esc(notes.join(' — ') || 'Standard calculation') + '</td>' +
+          '<td>' + esc(notes.join(' — ') || 'Standard statement') + '</td>' +
           '<td>' +
             '<div class="c-btn-row">' +
-              '<button type="button" class="c-btn c-btn--ghost c-btn--sm" data-fix="' + i + '">Fix / Correct</button>' +
+              '<button type="button" class="c-btn c-btn--ghost c-btn--sm" data-fix="' + i + '">Load &amp; Revise</button>' +
               (!inactive ? '<button type="button" class="c-btn c-btn--danger c-btn--sm" data-void="' + i + '">Void</button>' : '') +
             '</div>' +
           '</td>' +
@@ -507,6 +667,7 @@
       net: ov.net,
       effectiveDaily: r.effectiveDaily,
       months: r.months,
+      payments: appState.payments,
       rawState: JSON.parse(JSON.stringify(appState))
     };
   }
@@ -543,8 +704,8 @@
 
   function saveCurrentCalculation() {
     var rec = buildHistoryRecord();
-    if (rec.totalDays <= 0 && rec.gross <= 0) {
-      showFeedback('Please enter at least 1 working day before saving.', true);
+    if (rec.totalDays <= 0 && rec.gross <= 0 && (!appState.payments || !appState.payments.length)) {
+      showFeedback('Please enter working days or record a payment before saving.', true);
       return;
     }
 
@@ -640,11 +801,12 @@
     appState.calcMode = rs.calcMode || 'reverse';
     appState.billingMode = rs.billingMode || 'lump';
     appState.daughterRate = Number(rs.daughterRate || 3500);
-    appState.sonRate = Number(rs.sonRate || 2500);
+    appState.sonRate = Number(rs.sonRate || 2000);
     appState.months = Array.isArray(rs.months) && rs.months.length ? JSON.parse(JSON.stringify(rs.months)) : [currentMonthRow()];
-    appState.priorPaid = Number(item.gross || 0);
+    appState.payments = Array.isArray(rs.payments) ? JSON.parse(JSON.stringify(rs.payments)) : [];
+    appState.priorPaid = (appState.payments.length > 0) ? Number(rs.priorPaid || 0) : Number(item.gross || 0);
     appState.manualAdj = Number(rs.manualAdj || 0);
-    appState.correctionReason = item.correctionReason || ('Fixing ' + item.calcId);
+    appState.correctionReason = item.correctionReason || ('Revision of ' + item.calcId);
     appState.supersedesId = item.calcId;
     appState.previousGross = Number(item.gross || 0);
 
@@ -656,10 +818,11 @@
     el('correctionReason').value = appState.correctionReason;
     el('priorDetailsBox').open = true;
     el('correctionBanner').classList.add('is-visible');
-    el('btnSaveCalc').textContent = 'Save Corrected Calculation (Replaces ' + item.calcId + ')';
+    el('btnSaveCalc').textContent = 'Save Revised Statement (Replaces ' + item.calcId + ')';
 
     syncModeButtons();
     renderMonthCards();
+    renderPaymentsTable();
     recalculate();
     navigateTo('calculator');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -688,26 +851,45 @@
     if (!lastComputed) return;
     var r = lastComputed.result;
     var ov = r.overall;
+    var cr = r.childRates;
     var lines = [
-      'KENYA TAX & INVOICE SUMMARY (2026)',
-      appState.supersedesId ? ('Correction of ' + appState.supersedesId + ': ' + appState.correctionReason) : '',
-      'Working Days: ' + r.totalDays + ' days (Daughter: ' + r.daughterDays + 'd @ KES ' + fmt(appState.daughterRate) + ', Son: ' + r.sonDays + 'd @ KES ' + fmt(appState.sonRate) + ')',
+      'TEACHING SERVICES & KENYA TAX STATEMENT (2026)',
+      appState.supersedesId ? ('Revision of ' + appState.supersedesId + ': ' + appState.correctionReason) : '',
+      'Working Days: ' + r.totalDays + ' days (Child 1: ' + r.daughterDays + 'd | Child 2: ' + r.sonDays + 'd)',
+      'Effective Tax-Inclusive Daily Rates:',
+      ' - Child 1: KES ' + fmt(cr.c1EffDay) + '/day (Base Net: KES ' + fmt(appState.daughterRate) + '/day)',
+      ' - Child 2: KES ' + fmt(cr.c2EffDay) + '/day (Base Net: KES ' + fmt(appState.sonRate) + '/day)',
       '----------------------------------',
-      '1. Money for Mom (Take-Home): KES ' + fmt(ov.net),
-      '2. Extra for Taxes & Deductions: +KES ' + fmt(r.additionalPay),
-      '   - PAYE Income Tax: KES ' + fmt(ov.paye),
+      '1. Net Service Fee (Take-Home): KES ' + fmt(ov.net),
+      '2. Statutory Tax & Levy Remittance: +KES ' + fmt(r.additionalPay),
+      '   - KRA PAYE Income Tax: KES ' + fmt(ov.paye),
       '   - SHA / SHIF (2.75%): KES ' + fmt(ov.shif),
       '   - NSSF (6%): KES ' + fmt(ov.nssf),
       '   - Housing Levy (1.5%): KES ' + fmt(ov.ahl),
-      '3. TOTAL GROSS INVOICE: KES ' + fmt(ov.gross)
+      '3. TOTAL GROSS eTIMS INVOICE: KES ' + fmt(ov.gross)
     ].filter(Boolean);
+
+    if (appState.payments.length > 0) {
+      lines.push('----------------------------------');
+      lines.push('RECORDED PAYMENTS RECEIVED:');
+      appState.payments.forEach(function (pay) {
+        lines.push(' - ' + pay.date + ' [' + pay.ref + ']: KES ' + fmt(pay.amount));
+      });
+    }
     if (r.priorPaid > 0 || r.manualAdj !== 0) {
-      lines.push('Less Already Paid: -KES ' + fmt(r.priorPaid));
+      lines.push('Total Payments Deducted: -KES ' + fmt(r.priorPaid));
       if (r.manualAdj !== 0) lines.push('Adjustment: KES ' + fmt(r.manualAdj));
-      lines.push('BALANCE STILL OWED: KES ' + fmt(r.balanceOwed));
+      lines.push('NET BALANCE DUE: KES ' + fmt(r.balanceOwed));
+    }
+    if (appState.includeNarrative) {
+      var paras = buildNarrativeParagraphs(r);
+      lines.push('----------------------------------');
+      lines.push('EXPLANATORY NOTE:');
+      lines.push(paras[0]);
+      lines.push(paras[1]);
     }
     navigator.clipboard.writeText(lines.join('\n')).then(function () {
-      showFeedback('Copied summary! You can now paste it directly into WhatsApp.', false);
+      showFeedback('Copied statement summary! Ready to paste into WhatsApp.', false);
     }).catch(function () {
       showFeedback('Could not copy automatically on this browser.', true);
     });
@@ -776,6 +958,18 @@
       recalculate();
     });
 
+    el('btnAddPayment').addEventListener('click', addRecordedPayment);
+    el('paymentsTableBody').addEventListener('click', function (e) {
+      var delBtn = e.target.closest('[data-del-pay]');
+      if (delBtn) {
+        var pIdx = Number(delBtn.getAttribute('data-del-pay'));
+        appState.payments.splice(pIdx, 1);
+        renderPaymentsTable();
+        recalculate();
+      }
+    });
+
+    el('includeNarrative').addEventListener('change', recalculate);
     el('btnResetDays').addEventListener('click', resetEnteredDays);
     el('btnCancelCorrection').addEventListener('click', exitCorrectionMode);
     el('btnSaveCalc').addEventListener('click', saveCurrentCalculation);
@@ -821,6 +1015,7 @@
     historyCache = [];
   }
   renderMonthCards();
+  renderPaymentsTable();
   syncModeButtons();
   bindEvents();
   recalculate();
