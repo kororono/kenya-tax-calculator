@@ -208,11 +208,14 @@
           <div class="c-stat-note" id="statGrossNote">Total pre-tax invoice amount</div>
         </div>
         <div class="c-stat" id="statBalanceCard" style="display:none;">
-          <div class="c-stat-label">4. Net Balance Due</div>
+          <div class="c-stat-label" id="statBalanceLabel">4. Net Balance Due</div>
           <div class="c-stat-value" id="statBalance">KES 0.00</div>
           <div class="c-stat-note" id="statBalanceNote">After deducting payments received</div>
         </div>
       </div>
+
+      <!-- Crystal-Clear Account Reconciliation Verdict (Visible when Payments or Legacy Months exist) -->
+      <div id="reconVerdictBox" class="c-banner" style="display:none;margin-bottom:14px;"></div>
 
       <!-- Separate Effective Tax-Inclusive Daily Rates for Child 1 & Child 2 -->
       <div class="c-rate-strip">
@@ -322,8 +325,9 @@
               <th>ID &amp; Date</th>
               <th>Status</th>
               <th class="num">Days</th>
-              <th class="num">Net Fee</th>
-              <th class="num">Gross Invoice</th>
+              <th class="num">Total Billed</th>
+              <th class="num">Paid</th>
+              <th class="num">Overpaid / Underpaid</th>
               <th>Notes</th>
               <th>Action</th>
             </tr>

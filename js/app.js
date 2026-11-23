@@ -330,15 +330,56 @@
       (cr.c2Active ? (' | eTIMS Share: KES ' + fmt(cr.c2GrossTotal)) : '');
 
     var showBal = (res.priorPaid > 0 || res.manualAdj !== 0 || res.hasLegacyMonths);
-    el('statBalanceCard').style.display = showBal ? 'block' : 'none';
-    el('statBalance').textContent = 'KES ' + fmt(res.balanceOwed);
-    if (res.hasLegacyMonths) {
-      var varLabel = res.legacyVariance >= 0
-        ? ('Legacy surplus/credit: +KES ' + fmt(res.legacyVariance))
-        : ('Legacy unpaid shortfall: KES ' + fmt(-res.legacyVariance));
-      el('statBalanceNote').textContent = 'Combined KES ' + fmt(res.combinedGross) + ' minus Paid KES ' + fmt(res.priorPaid) + ' (' + varLabel + ')';
+    var balCard = el('statBalanceCard');
+    var balLabel = el('statBalanceLabel');
+    var verdictBox = el('reconVerdictBox');
+    balCard.style.display = showBal ? 'block' : 'none';
+    balCard.className = 'c-stat';
+
+    if (showBal) {
+      var bal = res.balanceOwed;
+      if (bal > 0.005) {
+        balLabel.textContent = '4. OVERALL UNDERPAID (STILL OWED)';
+        el('statBalance').textContent = 'KES ' + fmt(bal);
+        balCard.classList.add('c-stat--tax');
+      } else if (bal < -0.005) {
+        balLabel.textContent = '4. OVERALL OVERPAID (CREDIT)';
+        el('statBalance').textContent = 'KES ' + fmt(-bal);
+        balCard.classList.add('c-stat--takehome');
+      } else {
+        balLabel.textContent = '4. ACCOUNT FULLY SETTLED';
+        el('statBalance').textContent = 'KES 0.00';
+        balCard.classList.add('c-stat--takehome');
+      }
+      el('statBalanceNote').textContent =
+        'Total Billed KES ' + fmt(res.combinedGross) + ' minus Paid KES ' + fmt(res.priorPaid) +
+        (res.manualAdj !== 0 ? (' (Adj: ' + fmt(res.manualAdj) + ')') : '');
+
+      var zeroLeg = res.months.filter(function (m) { return m.legacy && m.totalDays === 0; }).map(function (m) { return m.label; });
+      var vHtml = '';
+      if (res.hasLegacyMonths) {
+        var legText = res.legacyVariance > 0.005
+          ? ('<strong>Historical Period Overpaid by KES ' + fmt(res.legacyVariance) + '</strong> (Paid KES ' + fmt(res.priorPaid) + ' vs Legacy Work KES ' + fmt(res.legacyBaseTotal) + (zeroLeg.length ? ('; awaiting days for: ' + esc(zeroLeg.join(', '))) : '') + ')')
+          : (res.legacyVariance < -0.005
+            ? ('<strong>Historical Period Underpaid by KES ' + fmt(-res.legacyVariance) + '</strong> (Legacy Work KES ' + fmt(res.legacyBaseTotal) + ' vs Paid KES ' + fmt(res.priorPaid) + ')')
+            : ('<strong>Historical Period Settled</strong> (KES ' + fmt(res.legacyBaseTotal) + ')'));
+        var taxText = ' | <strong>eTIMS Taxed Period Unpaid: KES ' + fmt(res.taxedGrossTotal) + '</strong>';
+        var ovText = bal > 0.005
+          ? ('Overall Verdict: <strong>UNDERPAID BY KES ' + fmt(bal) + '</strong>')
+          : (bal < -0.005 ? ('Overall Verdict: <strong>OVERPAID BY KES ' + fmt(-bal) + '</strong>') : 'Overall Verdict: <strong>SETTLED (KES 0.00)</strong>');
+        vHtml = '<div>' + ovText + '<div style="font-weight:500;font-size:0.84rem;margin-top:3px;">' + legText + taxText + '</div></div>';
+      } else {
+        var simpleVerdict = bal > 0.005
+          ? ('Account Verdict: <strong>UNDERPAID BY KES ' + fmt(bal) + '</strong> (Gross KES ' + fmt(res.combinedGross) + ' minus Paid KES ' + fmt(res.priorPaid) + ')')
+          : (bal < -0.005 ? ('Account Verdict: <strong>OVERPAID BY KES ' + fmt(-bal) + '</strong> (Paid KES ' + fmt(res.priorPaid) + ' vs Gross KES ' + fmt(res.combinedGross) + ')') : 'Account Verdict: <strong>FULLY SETTLED (KES 0.00)</strong>');
+        vHtml = '<div>' + simpleVerdict + '</div>';
+      }
+      verdictBox.style.display = 'flex';
+      verdictBox.className = 'c-banner is-visible ' + (bal > 0.005 ? 'c-banner--warn' : 'c-banner--ok');
+      verdictBox.innerHTML = vHtml;
     } else {
-      el('statBalanceNote').textContent = 'Gross ' + fmt(ov.gross) + ' minus Payments ' + fmt(res.priorPaid) + (res.manualAdj !== 0 ? (' (Adj: ' + fmt(res.manualAdj) + ')') : '');
+      verdictBox.style.display = 'none';
+      verdictBox.className = 'c-banner';
     }
 
     if (appState.supersedesId) {
@@ -631,13 +672,21 @@
   function renderHistoryView() {
     var tbody = el('historyTableBody');
     if (!historyCache.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted);">No saved statements yet. Click "Save to Google Sheet Ledger" on Tab 1 to store your first record.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="color:var(--text-muted);">No saved statements yet. Click "Save to Google Sheet Ledger" on Tab 1 to store your first record.</td></tr>';
       return;
     }
     tbody.innerHTML = historyCache.map(function (item, i) {
       var st = String(item.status || 'ACTIVE');
       var inactive = (st.indexOf('SUPERSEDED') === 0 || st.indexOf('VOIDED') === 0);
       var badge = inactive ? 'c-badge--old' : 'c-badge--active';
+      var paid = Number(item.priorPaid || 0);
+      var bal = Number(item.balanceOwed !== undefined ? item.balanceOwed : (Number(item.gross || 0) - paid));
+      var balHtml = '<span class="c-badge c-badge--active">SETTLED</span>';
+      if (bal > 0.005) {
+        balHtml = '<span class="c-badge" style="background:var(--status-warning-bg);color:var(--status-warning);border:1px solid var(--status-warning-border);">UNDERPAID KES ' + fmt(bal) + '</span>';
+      } else if (bal < -0.005) {
+        balHtml = '<span class="c-badge c-badge--active">OVERPAID KES ' + fmt(-bal) + '</span>';
+      }
       var notes = [];
       if (item.supersedesId) notes.push('Revised ' + item.supersedesId);
       if (item.correctionReason) notes.push(item.correctionReason);
@@ -646,8 +695,9 @@
           '<td><strong>' + esc(item.calcId) + '</strong><div class="c-hint">' + esc(item.timestamp) + '</div></td>' +
           '<td><span class="c-badge ' + badge + '">' + esc(st) + '</span></td>' +
           '<td class="num">' + Number(item.totalDays || 0) + ' days</td>' +
-          '<td class="num">KES ' + fmt(item.targetNet) + '</td>' +
-          '<td class="num"><strong>KES ' + fmt(item.gross) + '</strong></td>' +
+          '<td class="num"><strong>KES ' + fmt(item.gross) + '</strong><div class="c-hint">Net: ' + fmt(item.targetNet) + '</div></td>' +
+          '<td class="num">KES ' + fmt(paid) + '</td>' +
+          '<td class="num">' + balHtml + '</td>' +
           '<td>' + esc(notes.join(' — ') || 'Standard statement') + '</td>' +
           '<td>' +
             '<div class="c-btn-row">' +
