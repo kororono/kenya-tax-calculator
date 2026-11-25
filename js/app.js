@@ -38,6 +38,11 @@
   var appState = {
     calcMode: 'reverse',
     billingMode: 'lump',
+    allocationMode: 'auto',
+    invoiceCount: 1,
+    splitMode: 'cutoff',
+    splitCutoffIdx: 5,
+    splitPercent: 50,
     stackLegacyInYear: false,
     otherPriorIncome: 0,
     expenses: 0,
@@ -160,20 +165,43 @@
     }).join('');
   }
 
+  function syncSplitControlsUI() {
+    var inv2 = (Number(appState.invoiceCount || 1) === 2);
+    if (el('splitModeWrap')) el('splitModeWrap').style.display = inv2 ? 'flex' : 'none';
+    if (el('splitDetailRow')) el('splitDetailRow').style.display = inv2 ? 'grid' : 'none';
+    if (el('splitCutoffWrap')) el('splitCutoffWrap').style.display = (inv2 && appState.splitMode !== 'percent') ? 'flex' : 'none';
+    if (el('splitPercentWrap')) el('splitPercentWrap').style.display = (inv2 && appState.splitMode === 'percent') ? 'flex' : 'none';
+
+    var sel = el('splitCutoffIdx');
+    if (sel) {
+      var opts = appState.months.slice(0, Math.max(1, appState.months.length - 1)).map(function (m, i) {
+        return '<option value="' + i + '">Through ' + esc(m.month + ' ' + (m.year || 2026)) + '</option>';
+      }).join('');
+      sel.innerHTML = opts || '<option value="0">First Month</option>';
+      var maxIdx = Math.max(0, appState.months.length - 2);
+      if (appState.splitCutoffIdx > maxIdx) appState.splitCutoffIdx = maxIdx;
+      sel.value = String(appState.splitCutoffIdx);
+    }
+  }
+
   function renderMonthCards() {
     var canRemove = appState.months.length > 1;
+    var isAuto = (appState.allocationMode !== 'manual');
     el('monthsContainer').innerHTML = appState.months.map(function (m, i) {
       var isLeg = Boolean(m.legacy);
+      var basisControl = isAuto
+        ? '<span class="c-badge c-badge--old" id="mAutoTag_' + i + '">Auto FIFO: Paid = Pre-Tax, Unpaid = eTIMS</span>'
+        : ('<select class="c-input" data-idx="' + i + '" data-field="legacy" aria-label="Tax Basis">' +
+            '<option value="taxed"' + (!isLeg ? ' selected' : '') + '>eTIMS Taxed (2026)</option>' +
+            '<option value="legacy"' + (isLeg ? ' selected' : '') + '>Pre-Tax / Legacy (No Tax)</option>' +
+          '</select>');
       return (
-        '<div class="c-month-item' + (isLeg ? ' is-legacy' : '') + '">' +
+        '<div class="c-month-item' + (!isAuto && isLeg ? ' is-legacy' : '') + '" id="mCard_' + i + '">' +
           '<div class="c-month-top">' +
             '<div class="c-month-pickers">' +
               '<select class="c-input" data-idx="' + i + '" data-field="month" aria-label="Month">' + buildMonthOptions(m.month) + '</select>' +
               '<input type="number" class="c-input" style="max-width:96px;" data-idx="' + i + '" data-field="year" value="' + Number(m.year || 2026) + '" min="2024" max="2035" aria-label="Year">' +
-              '<select class="c-input" data-idx="' + i + '" data-field="legacy" aria-label="Tax Basis">' +
-                '<option value="taxed"' + (!isLeg ? ' selected' : '') + '>eTIMS Taxed (2026)</option>' +
-                '<option value="legacy"' + (isLeg ? ' selected' : '') + '>Pre-Tax / Legacy (No Tax)</option>' +
-              '</select>' +
+              basisControl +
             '</div>' +
             (canRemove ? '<button type="button" class="c-btn c-btn--danger c-btn--sm" data-remove="' + i + '">Remove</button>' : '') +
           '</div>' +
@@ -295,6 +323,11 @@
     appState.sonRate = Math.max(0, Number(el('sonRate').value || 0));
     appState.maxDaysMonth = Math.max(1, Number(el('maxDaysMonth').value || 20));
     appState.billingMode = el('billingMode').value;
+    if (el('allocationMode')) appState.allocationMode = el('allocationMode').value;
+    if (el('invoiceCount')) appState.invoiceCount = Number(el('invoiceCount').value || 1);
+    if (el('splitMode')) appState.splitMode = el('splitMode').value;
+    if (el('splitCutoffIdx') && el('splitCutoffIdx').value !== '') appState.splitCutoffIdx = Number(el('splitCutoffIdx').value);
+    if (el('splitPercent')) appState.splitPercent = Math.min(95, Math.max(5, Number(el('splitPercent').value || 50)));
     appState.stackLegacyInYear = (el('stackLegacyMode').value === 'stack');
     appState.otherPriorIncome = Math.max(0, Number(el('otherPriorIncome').value || 0));
     appState.expenses = Math.max(0, Number(el('etimsExpenses').value || 0));
@@ -302,6 +335,8 @@
     appState.manualAdj = Number(el('manualAdj').value || 0);
     appState.correctionReason = el('correctionReason').value.trim();
     appState.includeNarrative = Boolean(el('includeNarrative').checked);
+
+    syncSplitControlsUI();
 
     localStorage.setItem(STORAGE_KEYS.RATES, JSON.stringify({
       daughterRate: appState.daughterRate,
@@ -315,6 +350,7 @@
 
     updateMonthSummaries(res);
     updateHeadlineCards(res);
+    renderSplitInvoices(res);
     renderProofTable(res, params);
     renderNarrativePreview(res);
     renderPlannerView(params);
@@ -325,14 +361,58 @@
     res.months.forEach(function (m, i) {
       var box = el('mSummary_' + i);
       if (!box) return;
-      var tag = m.legacy ? 'Legacy (Non-Tax)' : 'eTIMS Taxed';
+      var tag = m.partialPaid ? 'Partial Paid / eTIMS' : (m.legacy ? 'Paid Pre-Tax (0%)' : 'Unpaid (eTIMS)');
+      var card = el('mCard_' + i);
+      if (card) card.classList.toggle('is-legacy', m.legacy);
+      var autoBadge = el('mAutoTag_' + i);
+      if (autoBadge) {
+        autoBadge.textContent = m.partialPaid
+          ? ('Partial: KES ' + fmt(m.paidShare) + ' Paid · KES ' + fmt(m.unpaidNet) + ' eTIMS')
+          : (m.legacy ? 'Paid (Pre-Tax 0%)' : 'Unpaid (eTIMS Taxed)');
+        autoBadge.className = 'c-badge ' + (m.legacy ? 'c-badge--active' : 'c-badge--old');
+      }
+      var paidLine = m.partialPaid
+        ? ('<div class="c-month-summary-line"><span>Paid / Unpaid Net:</span><strong>' + fmt(m.paidShare) + ' / ' + fmt(m.unpaidNet) + '</strong></div>')
+        : '';
       var c1Line = m.dDays > 0 ? ('<div class="c-month-summary-line"><span>Child 1 Rate:</span><strong>KES ' + fmt(m.c1EffDay) + '/d</strong></div>') : '';
       var c2Line = m.sDays > 0 ? ('<div class="c-month-summary-line"><span>Child 2 Rate:</span><strong>KES ' + fmt(m.c2EffDay) + '/d</strong></div>') : '';
       box.innerHTML =
         '<div class="c-month-summary-line"><span>' + tag + ':</span><strong>KES ' + fmt(m.net) + ' net</strong></div>' +
-        '<div class="c-month-summary-line"><span>Invoice Share:</span><strong>KES ' + fmt(m.gross) + '</strong></div>' +
+        paidLine +
+        '<div class="c-month-summary-line"><span>Total Billed:</span><strong>KES ' + fmt(m.gross) + '</strong></div>' +
         c1Line + c2Line;
     });
+  }
+
+  function renderSplitInvoices(res) {
+    var wrap = el('splitInvoicesContainer');
+    if (!wrap) return;
+    if (!res.invoices || res.invoices.length < 2) {
+      wrap.style.display = 'none';
+      wrap.innerHTML = '';
+      return;
+    }
+    wrap.style.display = 'block';
+    wrap.innerHTML =
+      '<div style="font-weight:700;font-size:0.92rem;margin-bottom:8px;">Split eTIMS Invoices (2-Installment Client Option)</div>' +
+      '<div class="c-split-grid">' +
+        res.invoices.map(function (inv) {
+          var r = inv.result;
+          return (
+            '<div class="c-split-card">' +
+              '<div class="c-split-card-head">' +
+                '<strong>' + esc(inv.title) + '</strong>' +
+                '<span class="c-badge c-badge--old">' + esc(inv.periodLabel) + '</span>' +
+              '</div>' +
+              '<div class="c-stat-value" style="font-size:1.3rem;">KES ' + fmt(r.gross) + '</div>' +
+              '<div class="c-split-card-meta">' +
+                'Net Take-Home: <strong>KES ' + fmt(r.net) + '</strong> &bull; Total Tax/Levies: +KES ' + fmt(r.totalDed) + '<br>' +
+                'IT1 Tax: KES ' + fmt(r.incomeTax) + ' (Relief: KES ' + fmt(r.relief) + ') &bull; SHIF: KES ' + fmt(r.shif) + ' &bull; AHL: KES ' + fmt(r.ahl) +
+              '</div>' +
+            '</div>'
+          );
+        }).join('') +
+      '</div>';
   }
 
   function updateHeadlineCards(res) {
@@ -556,10 +636,13 @@
       ? ('Time-Apportioned IT1 (' + res.reliefMonthsCount + ' mo: ' + formatMonthRange(res.reliefMonthLabels) + ')')
       : 'Month-by-Month IT1 Schedule';
     var monthRowsHtml = res.months.map(function (m) {
+      var basisTxt = m.partialPaid
+        ? ('Partial (' + fmt(m.paidShare) + ' Paid / ' + fmt(m.unpaidNet) + ' eTIMS)')
+        : (m.legacy ? 'Paid Pre-Tax (0%)' : 'Unpaid (eTIMS)');
       return (
         '<tr>' +
           '<td>' + esc(m.label) + '</td>' +
-          '<td>' + (m.legacy ? 'Legacy (Non-Tax)' : 'eTIMS Taxed') + '</td>' +
+          '<td>' + basisTxt + '</td>' +
           '<td class="num">' + m.dDays + 'd (' + fmt(m.c1EffDay || appState.daughterRate) + '/d)</td>' +
           '<td class="num">' + m.sDays + 'd (' + fmt(m.c2EffDay || appState.sonRate) + '/d)</td>' +
           '<td class="num">KES ' + fmt(m.net) + '</td>' +
@@ -567,6 +650,24 @@
         '</tr>'
       );
     }).join('');
+
+    var splitPrintHtml = '';
+    if (res.invoices && res.invoices.length > 1) {
+      splitPrintHtml =
+        '<div class="p-section-title">Split eTIMS Invoice Option (2 Installments)</div>' +
+        '<div class="p-split-grid">' +
+          res.invoices.map(function (inv) {
+            var ir = inv.result;
+            return (
+              '<div class="p-box p-box--strong">' +
+                '<div class="p-box-label">' + esc(inv.title) + ' &mdash; ' + esc(inv.periodLabel) + '</div>' +
+                '<div class="p-box-val">KES ' + fmt(ir.gross) + '</div>' +
+                '<div class="p-box-sub">Net: KES ' + fmt(ir.net) + ' | Tax+Levies: KES ' + fmt(ir.totalDed) + ' (IT1 ' + fmt(ir.incomeTax) + ', SHIF ' + fmt(ir.shif) + ', AHL ' + fmt(ir.ahl) + ')</div>' +
+              '</div>'
+            );
+          }).join('') +
+        '</div>';
+    }
 
     var proofRowsHtml = getProofRows(res, p).map(function (r) {
       var boldCls = (r[0] === 'is-total' || r[0] === 'is-tax') ? 'is-bold' : (r[0] === 'is-sub' ? 'is-sub' : '');
@@ -656,6 +757,7 @@
         '<thead><tr><th>Month</th><th>Tax Basis</th><th class="num">Child 1</th><th class="num">Child 2</th><th class="num">Net Fee (KES)</th><th class="num">Gross Amount (KES)</th></tr></thead>' +
         '<tbody>' + monthRowsHtml + '</tbody>' +
       '</table>' +
+      splitPrintHtml +
       '<div class="p-section-title">2. Itemized 2026 Kenya Individual Self-Assessment (IT1) Calculation</div>' +
       '<table class="p-table">' +
         '<thead><tr><th>Line Item</th><th>Statutory Basis (2026 Kenya Law)</th><th class="num">Amount (KES)</th></tr></thead>' +
@@ -704,6 +806,13 @@
       rows.push([pr[1], pr[2].toFixed(2), pr[3], '', '', '']);
     });
 
+    if (r.invoices && r.invoices.length > 1) {
+      rows.push(['', '', '', '', '', '']);
+      rows.push(['2-INVOICE SPLIT OPTION', 'Period / Share', 'Net Fee (KES)', 'IT1 + Levies (KES)', 'Gross Invoice (KES)', '']);
+      r.invoices.forEach(function (inv) {
+        rows.push([inv.title, inv.periodLabel, inv.result.net.toFixed(2), inv.result.totalDed.toFixed(2), inv.result.gross.toFixed(2), '']);
+      });
+    }
     if (appState.payments.length > 0) {
       rows.push(['', '', '', '', '', '']);
       rows.push(['SECTION 4: RECORDED PAYMENTS RECEIVED (CUMULATIVE)', 'Date Received', 'M-PESA / Bank Reference', 'Amount (KES)', 'Channel / Note', '']);
@@ -991,6 +1100,11 @@
     var rs = item.rawState || {};
     appState.calcMode = rs.calcMode || 'reverse';
     appState.billingMode = rs.billingMode || 'lump';
+    appState.allocationMode = rs.allocationMode || 'auto';
+    appState.invoiceCount = Number(rs.invoiceCount || 1);
+    appState.splitMode = rs.splitMode || 'cutoff';
+    appState.splitCutoffIdx = (rs.splitCutoffIdx !== undefined) ? Number(rs.splitCutoffIdx) : 5;
+    appState.splitPercent = Number(rs.splitPercent || 50);
     appState.stackLegacyInYear = Boolean(rs.stackLegacyInYear);
     appState.otherPriorIncome = Number(rs.otherPriorIncome || 0);
     appState.expenses = Number(rs.expenses || 0);
@@ -1007,6 +1121,10 @@
     el('daughterRate').value = appState.daughterRate;
     el('sonRate').value = appState.sonRate;
     el('billingMode').value = appState.billingMode;
+    if (el('allocationMode')) el('allocationMode').value = appState.allocationMode;
+    if (el('invoiceCount')) el('invoiceCount').value = String(appState.invoiceCount);
+    if (el('splitMode')) el('splitMode').value = appState.splitMode;
+    if (el('splitPercent')) el('splitPercent').value = appState.splitPercent;
     el('stackLegacyMode').value = appState.stackLegacyInYear ? 'stack' : 'standalone';
     el('otherPriorIncome').value = appState.otherPriorIncome;
     el('etimsExpenses').value = appState.expenses;
@@ -1070,6 +1188,13 @@
       r.hasLegacyMonths ? ('   Combined Account Value (Legacy + eTIMS): KES ' + fmt(r.combinedGross)) : ''
     ].filter(Boolean);
 
+    if (r.invoices && r.invoices.length > 1) {
+      lines.push('----------------------------------');
+      lines.push('2-INVOICE SPLIT OPTION:');
+      r.invoices.forEach(function (inv) {
+        lines.push(' - ' + inv.title + ' (' + inv.periodLabel + '): KES ' + fmt(inv.result.gross) + ' gross (Net KES ' + fmt(inv.result.net) + ')');
+      });
+    }
     if (appState.payments.length > 0) {
       lines.push('----------------------------------');
       lines.push('RECORDED PAYMENTS RECEIVED (' + appState.payments.length + '):');
@@ -1211,7 +1336,15 @@
       fetchCloudHistory(false);
     });
 
-    ['daughterRate', 'sonRate', 'maxDaysMonth', 'billingMode', 'stackLegacyMode', 'otherPriorIncome', 'etimsExpenses',
+    if (el('allocationMode')) {
+      el('allocationMode').addEventListener('change', function () {
+        appState.allocationMode = el('allocationMode').value;
+        renderMonthCards();
+        recalculate();
+      });
+    }
+    ['daughterRate', 'sonRate', 'maxDaysMonth', 'billingMode', 'invoiceCount', 'splitMode', 'splitCutoffIdx', 'splitPercent',
+     'stackLegacyMode', 'otherPriorIncome', 'etimsExpenses',
      'priorPaid', 'manualAdj', 'correctionReason', 'pNssfRate', 'pNssfCap', 'pShifRate', 'pShifMin', 'pAhlRate', 'pRelief'].forEach(function (id) {
       if (!el(id)) return;
       el(id).addEventListener('input', recalculate);

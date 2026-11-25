@@ -584,6 +584,34 @@ select.c-input option {
   font-variant-numeric: tabular-nums;
 }
 
+.c-split-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.c-split-card {
+  border: 1.5px solid var(--border-strong);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  padding: 13px 15px;
+}
+
+.c-split-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.c-split-card-meta {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
 /* §8 ── Data tables & payment log ───────────────────────────────────────── */
 .c-table-wrap {
   overflow-x: auto;
@@ -844,6 +872,14 @@ select.c-input option {
     page-break-inside: avoid;
   }
   .p-rate-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 9px;
+    margin-bottom: 12px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .p-split-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 9px;

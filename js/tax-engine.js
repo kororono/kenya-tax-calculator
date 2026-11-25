@@ -2,11 +2,13 @@
    tax-engine.js — Canonical 2026 Kenya Individual Self-Assessment (IT1) Engine
                    (Zero DOM dependencies; one implementation of all tax math)
 
-   Basis: KRA Individual Income Tax (Cap 470, Resident IT1 Self-Assessment),
-          time-apportioned across active taxed months (N/12 of annual bands and
-          KES 28,800/yr Personal Relief, starting from KES 0 prior income by
-          default), Social Health Insurance Fund (SHIF 2.75% pre-tax),
-          Affordable Housing Levy (AHL 1.5% pre-tax), NSSF voluntary (0%).
+   Basis:
+     - Paid & received amounts = Pre-Tax (0% eTIMS gross-up) via chronological FIFO.
+     - Unpaid balances across any month = eTIMS Taxed through KRA IT1.
+     - Time-apportioned progressive IT1 bands & KES 28,800/yr Personal Relief
+       (N/12 based on active unpaid eTIMS months), SHA/SHIF 2.75% pre-tax,
+       Affordable Housing Levy 1.5% pre-tax, 0% default NSSF, optional expenses.
+     - Supports issuing 1 consolidated eTIMS invoice or 2 split eTIMS invoices.
    ═══════════════════════════════════════════════════════════════════════════ */
 (function (root) {
   'use strict';
@@ -34,7 +36,7 @@
 
   function calcApportionedBands(taxable, monthsCount) {
     var t = Math.max(0, Number(taxable || 0));
-    var scale = Math.max(1, Number(monthsCount || 12)) / 12;
+    var scale = Math.max(0.1, Number(monthsCount || 12)) / 12;
     var c1 = 288000 * scale;
     var c2 = 388000 * scale;
     var c3 = 6000000 * scale;
@@ -54,7 +56,7 @@
     var g = Math.max(0, Number(gross || 0));
     if (g <= 0) return emptyPeriod();
 
-    var monthsCount = (o.period === 'monthly') ? 1 : Math.max(1, Number(o.monthsCount || 12));
+    var monthsCount = (o.period === 'monthly') ? 1 : Math.max(0.1, Number(o.monthsCount || 12));
     var priorTaxable = (o.period === 'monthly') ? 0 : Math.max(0, Number(o.priorTaxable || 0));
     var expenses = Math.max(0, Number(o.expenses || 0));
 
@@ -140,12 +142,81 @@
     };
   }
 
+  function buildSplitInvoices(state, monthItems, taxedMonths, taxBase, taxedOverall, reliefMonthsCount, expenses, priorYearTaxable, params) {
+    var invCount = Number(state.invoiceCount || 1) === 2 ? 2 : 1;
+    var activeLabels = taxedMonths.map(function (m) { return m.label; });
+    if (invCount === 1 || taxBase <= 0) {
+      return [{
+        number: 1,
+        title: 'eTIMS Invoice 1 (Consolidated)',
+        periodLabel: activeLabels.length ? (activeLabels[0] + (activeLabels.length > 1 ? (' – ' + activeLabels[activeLabels.length - 1]) : '')) : 'None',
+        monthsCount: reliefMonthsCount,
+        result: taxedOverall
+      }];
+    }
+
+    var solveFn = (state.calcMode === 'forward') ? calcForward : solveGrossFromNet;
+    var splitMode = (state.splitMode === 'percent') ? 'percent' : 'cutoff';
+    var n1Base = 0, n2Base = 0, m1 = 0, m2 = 0, lbl1 = '', lbl2 = '';
+
+    if (splitMode === 'percent') {
+      var pct = Math.min(95, Math.max(5, Number(state.splitPercent || 50))) / 100;
+      n1Base = taxBase * pct;
+      n2Base = taxBase * (1 - pct);
+      m1 = Math.max(0.1, reliefMonthsCount * pct);
+      m2 = Math.max(0.1, reliefMonthsCount * (1 - pct));
+      lbl1 = Math.round(pct * 100) + '% Tranche (' + (activeLabels.length ? (activeLabels[0] + ' – ' + activeLabels[activeLabels.length - 1]) : '') + ')';
+      lbl2 = Math.round((1 - pct) * 100) + '% Tranche (' + (activeLabels.length ? (activeLabels[0] + ' – ' + activeLabels[activeLabels.length - 1]) : '') + ')';
+    } else {
+      var cutIdx = Number(state.splitCutoffIdx);
+      if (isNaN(cutIdx) || cutIdx < 0 || cutIdx >= monthItems.length - 1) {
+        cutIdx = Math.max(0, Math.floor(monthItems.length / 2) - 1);
+      }
+      var g1 = [], g2 = [];
+      monthItems.forEach(function (item, idx) {
+        if (item.unpaidNet > 0) {
+          if (idx <= cutIdx) { n1Base += item.unpaidNet; g1.push(item.label); }
+          else { n2Base += item.unpaidNet; g2.push(item.label); }
+        }
+      });
+      if (n1Base <= 0 || n2Base <= 0) {
+        // Fallback to 50/50 if cutoff puts everything on one side
+        n1Base = taxBase * 0.5; n2Base = taxBase * 0.5;
+        m1 = Math.max(0.1, reliefMonthsCount * 0.5); m2 = Math.max(0.1, reliefMonthsCount * 0.5);
+        lbl1 = '50% Tranche 1'; lbl2 = '50% Tranche 2';
+      } else {
+        m1 = g1.length; m2 = g2.length;
+        lbl1 = g1[0] + (g1.length > 1 ? (' – ' + g1[g1.length - 1]) : '');
+        lbl2 = g2[0] + (g2.length > 1 ? (' – ' + g2[g2.length - 1]) : '');
+      }
+    }
+
+    var exp1 = (taxBase > 0) ? expenses * (n1Base / taxBase) : 0;
+    var exp2 = expenses - exp1;
+    var r1 = solveFn(n1Base, params, { period: 'apportioned', monthsCount: m1, priorTaxable: priorYearTaxable, expenses: exp1 });
+    var r2 = solveFn(n2Base, params, { period: 'apportioned', monthsCount: m2, priorTaxable: priorYearTaxable, expenses: exp2 });
+
+    return [
+      { number: 1, title: 'eTIMS Invoice 1', periodLabel: lbl1, monthsCount: m1, result: r1 },
+      { number: 2, title: 'eTIMS Invoice 2', periodLabel: lbl2, monthsCount: m2, result: r2 }
+    ];
+  }
+
   function computeSchedule(state, params) {
     var p = params || DEFAULT_PARAMS;
     var dRate = Math.max(0, Number(state.daughterRate || 0));
     var sRate = Math.max(0, Number(state.sonRate || 0));
     var maxDays = Math.max(1, Number(state.maxDaysMonth || 20));
     var rows = Array.isArray(state.months) ? state.months : [];
+    var isAutoFifo = (state.allocationMode !== 'manual');
+
+    var payments = Array.isArray(state.payments) ? state.payments : [];
+    var recordedPaid = payments.reduce(function (sum, pay) {
+      return sum + Math.max(0, Number(pay.amount || 0));
+    }, 0);
+    var extraPrior = Math.max(0, Number(state.priorPaid || 0));
+    var totalPriorPaid = recordedPaid + extraPrior;
+    var fifoRemaining = totalPriorPaid;
 
     var totD = 0, totS = 0, totBase = 0;
     var taxD = 0, taxS = 0, taxBase = 0;
@@ -154,28 +225,54 @@
     var monthItems = rows.map(function (m) {
       var d = Math.max(0, Number(m.dDays || 0));
       var s = Math.max(0, Number(m.sDays || 0));
-      var legacy = Boolean(m.legacy);
       var base = d * dRate + s * sRate;
       totD += d; totS += s; totBase += base;
-      if (legacy) {
-        legD += d; legS += s; legBase += base;
+
+      var paidShare = 0;
+      var unpaidNet = 0;
+      var isLegacy = Boolean(m.legacy);
+
+      if (isAutoFifo) {
+        paidShare = Math.min(base, fifoRemaining);
+        unpaidNet = Math.max(0, base - paidShare);
+        fifoRemaining = Math.max(0, fifoRemaining - paidShare);
+        legBase += paidShare;
+        taxBase += unpaidNet;
+        if (base > 0) {
+          var unpaidFrac = unpaidNet / base;
+          taxD += d * unpaidFrac;
+          taxS += s * unpaidFrac;
+          legD += d * (1 - unpaidFrac);
+          legS += s * (1 - unpaidFrac);
+        }
+        isLegacy = (unpaidNet <= 0.004);
       } else {
-        taxD += d; taxS += s; taxBase += base;
+        if (isLegacy) {
+          paidShare = base;
+          unpaidNet = 0;
+          legD += d; legS += s; legBase += base;
+        } else {
+          paidShare = 0;
+          unpaidNet = base;
+          taxD += d; taxS += s; taxBase += base;
+        }
       }
+
       return {
         month: m.month, year: m.year, label: m.month + ' ' + m.year,
-        legacy: legacy, dDays: d, sDays: s, totalDays: d + s,
+        legacy: isLegacy, partialPaid: (isAutoFifo && paidShare > 0.004 && unpaidNet > 0.004),
+        dDays: d, sDays: s, totalDays: d + s,
         c1Base: d * dRate, c2Base: s * sRate, baseAmt: base,
+        paidShare: paidShare, unpaidNet: unpaidNet,
         gross: base, totalDed: 0, net: base,
-        c1EffDay: legacy && d > 0 ? dRate : 0,
-        c2EffDay: legacy && s > 0 ? sRate : 0
+        c1EffDay: (isLegacy && d > 0) ? dRate : 0,
+        c2EffDay: (isLegacy && s > 0) ? sRate : 0
       };
     });
 
     var solveFn = (state.calcMode === 'forward') ? calcForward : solveGrossFromNet;
-    var taxedMonths = monthItems.filter(function (item) { return !item.legacy; });
-    var activeTaxedMonths = taxedMonths.filter(function (item) { return item.totalDays > 0; });
-    var reliefMonthsList = (activeTaxedMonths.length > 0) ? activeTaxedMonths : taxedMonths;
+    var taxedMonths = monthItems.filter(function (item) { return item.unpaidNet > 0.004; });
+    var reliefMonthsList = taxedMonths;
     var reliefMonthsCount = reliefMonthsList.length;
     var expenses = Math.max(0, Number(state.expenses || 0));
     var stackLegacy = Boolean(state.stackLegacyInYear);
@@ -185,13 +282,15 @@
 
     if (state.billingMode === 'monthly') {
       var perMonthExp = reliefMonthsCount > 0 ? (expenses / reliefMonthsCount) : 0;
-      var perMonth = taxedMonths.map(function (item) {
-        if (item.totalDays <= 0) return emptyPeriod();
-        var r = solveFn(item.baseAmt, p, { period: 'monthly', expenses: perMonthExp });
-        var mMult = (item.baseAmt > 0) ? (r.gross / item.baseAmt) : 0;
-        item.gross = r.gross; item.totalDed = r.totalDed; item.net = r.net;
-        item.c1EffDay = (item.dDays > 0) ? (dRate * mMult) : 0;
-        item.c2EffDay = (item.sDays > 0) ? (sRate * mMult) : 0;
+      var perMonth = monthItems.map(function (item) {
+        if (item.unpaidNet <= 0.004) return emptyPeriod();
+        var r = solveFn(item.unpaidNet, p, { period: 'monthly', expenses: perMonthExp });
+        item.gross = item.paidShare + r.gross;
+        item.totalDed = r.totalDed;
+        item.net = item.paidShare + r.net;
+        var uMult = (item.unpaidNet > 0) ? (r.gross / item.unpaidNet) : 1;
+        item.c1EffDay = (item.dDays > 0) ? (dRate * uMult) : 0;
+        item.c2EffDay = (item.sDays > 0) ? (sRate * uMult) : 0;
         return r;
       });
       taxedOverall = sumPeriods(perMonth);
@@ -202,17 +301,22 @@
         priorTaxable: priorYearTaxable,
         expenses: expenses
       });
-      var lMult = (taxBase > 0) ? (taxedOverall.gross / taxBase) : 0;
-      taxedMonths.forEach(function (item) {
-        var share = (taxBase > 0) ? (item.baseAmt / taxBase) : 0;
-        item.gross = taxedOverall.gross * share;
-        item.totalDed = taxedOverall.totalDed * share;
-        item.net = taxedOverall.net * share;
+      var lMult = (taxBase > 0) ? (taxedOverall.gross / taxBase) : 1;
+      monthItems.forEach(function (item) {
+        if (item.unpaidNet <= 0.004) return;
+        var share = (taxBase > 0) ? (item.unpaidNet / taxBase) : 0;
+        var eGross = taxedOverall.gross * share;
+        var eDed = taxedOverall.totalDed * share;
+        var eNet = taxedOverall.net * share;
+        item.gross = item.paidShare + eGross;
+        item.totalDed = eDed;
+        item.net = item.paidShare + eNet;
         item.c1EffDay = (item.dDays > 0) ? (dRate * lMult) : 0;
         item.c2EffDay = (item.sDays > 0) ? (sRate * lMult) : 0;
       });
     }
 
+    var invoices = buildSplitInvoices(state, monthItems, taxedMonths, taxBase, taxedOverall, reliefMonthsCount, expenses, priorYearTaxable, p);
     var combinedNet = legBase + taxedOverall.net;
     var combinedGross = legBase + taxedOverall.gross;
     var additionalPay = taxedOverall.gross - taxedOverall.net;
@@ -220,18 +324,14 @@
     var taxDays = taxD + taxS;
     var legDays = legD + legS;
     var annualRelief = Number(p.annualRelief !== undefined ? p.annualRelief : 28800);
-
-    var payments = Array.isArray(state.payments) ? state.payments : [];
-    var recordedPaid = payments.reduce(function (sum, pay) {
-      return sum + Math.max(0, Number(pay.amount || 0));
-    }, 0);
-    var extraPrior = Math.max(0, Number(state.priorPaid || 0));
-    var totalPriorPaid = recordedPaid + extraPrior;
     var manualAdj = Number(state.manualAdj || 0);
     var childRates = computeChildRates(dRate, sRate, taxD, taxS, taxBase, taxedOverall, maxDays, state.calcMode, p);
 
     return {
       overall: taxedOverall,
+      invoices: invoices,
+      isAutoFifo: isAutoFifo,
+      overpaidPool: fifoRemaining,
       combinedNet: combinedNet,
       combinedGross: combinedGross,
       legacyDays: legDays,
@@ -245,7 +345,7 @@
       taxedNetTotal: taxedOverall.net,
       taxedGrossTotal: taxedOverall.gross,
       months: monthItems,
-      hasLegacyMonths: monthItems.some(function (m) { return m.legacy; }),
+      hasLegacyMonths: legBase > 0.004,
       childRates: childRates,
       daughterDays: totD,
       sonDays: totS,

@@ -95,6 +95,43 @@
         </div>
       </div>
 
+      <div class="c-grid-3" style="margin-top:14px;">
+        <div class="c-field">
+          <label class="c-label" for="allocationMode">Paid vs. eTIMS Allocation</label>
+          <select class="c-input" id="allocationMode">
+            <option value="auto" selected>Auto FIFO (Paid = Pre-Tax 0%, Unpaid = eTIMS)</option>
+            <option value="manual">Manual Per-Month Toggle</option>
+          </select>
+        </div>
+        <div class="c-field">
+          <label class="c-label" for="invoiceCount">eTIMS Invoices to Issue</label>
+          <select class="c-input" id="invoiceCount">
+            <option value="1" selected>1 Consolidated eTIMS Invoice</option>
+            <option value="2">2 Split eTIMS Invoices (Pay in 2 Bits)</option>
+          </select>
+        </div>
+        <div class="c-field" id="splitModeWrap" style="display:none;">
+          <label class="c-label" for="splitMode">How to Split (2 Invoices)</label>
+          <select class="c-input" id="splitMode">
+            <option value="cutoff" selected>By Month Cutoff (e.g. May–Jun &amp; Jul–Nov)</option>
+            <option value="percent">By Percentage (e.g. 50% / 50%)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="c-grid-2" id="splitDetailRow" style="display:none;margin-top:12px;">
+        <div class="c-field" id="splitCutoffWrap">
+          <label class="c-label" for="splitCutoffIdx">Invoice 1 Covers Unpaid Work Through</label>
+          <select class="c-input" id="splitCutoffIdx"></select>
+          <span class="c-hint">Everything after this month goes into eTIMS Invoice 2.</span>
+        </div>
+        <div class="c-field" id="splitPercentWrap" style="display:none;">
+          <label class="c-label" for="splitPercent">Invoice 1 Share (% of Unpaid Net)</label>
+          <input type="number" class="c-input" id="splitPercent" value="50" min="5" max="95" step="5">
+          <span class="c-hint">Invoice 2 automatically receives the remaining percentage.</span>
+        </div>
+      </div>
+
       <details id="saOptionsBox" style="margin-top:14px;">
         <summary style="cursor:pointer;font-weight:600;font-size:0.88rem;color:var(--text-secondary);">
           Self-Assessment Options: Prior Income &amp; Allowable eTIMS Expenses (Optional — click to open)
@@ -269,6 +306,9 @@
         <button type="button" class="c-btn c-btn--ghost" id="btnDownloadCsv">Export Excel (.CSV)</button>
         <button type="button" class="c-btn c-btn--ghost" id="btnCopyWhatsApp">Copy for WhatsApp</button>
       </div>
+
+      <!-- Optional 2-Invoice Split Breakdown (Visible when 2 eTIMS Invoices selected) -->
+      <div id="splitInvoicesContainer" style="display:none;margin-bottom:16px;"></div>
 
       <details open>
         <summary style="cursor:pointer;font-weight:700;font-size:0.92rem;margin-bottom:10px;">
